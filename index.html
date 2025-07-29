@@ -102,16 +102,8 @@
 
             <!-- Tools -->
             <div class="flex flex-col items-center space-y-4 w-full">
-                <button class="tool-button active w-12 h-12 rounded-lg flex items-center justify-center text-dental-primary hover:bg-gray-800" data-tool="pencil">
-                    <i class="fas fa-pencil-alt text-lg"></i>
-                </button>
-
-                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="ruler">
-                    <i class="fas fa-ruler-combined text-lg"></i>
-                </button>
-
-                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="cut">
-                    <i class="fas fa-cut text-lg"></i>
+                <button class="tool-button active w-12 h-12 rounded-lg flex items-center justify-center text-dental-primary hover:bg-gray-800" data-tool="select">
+                    <i class="fas fa-mouse-pointer text-lg"></i>
                 </button>
 
                 <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="addMaterial">
@@ -124,6 +116,18 @@
 
                 <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="smooth">
                     <i class="fas fa-magic text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="measure">
+                    <i class="fas fa-ruler-combined text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="cut">
+                    <i class="fas fa-cut text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="rotate">
+                    <i class="fas fa-sync-alt text-lg"></i>
                 </button>
 
                 <div class="border-t border-gray-800 w-8 mx-auto"></div>
@@ -266,10 +270,13 @@
                 </div>
 
                 <div class="ml-auto flex items-center space-x-3">
+                    <button id="makePrintableButton" class="text-gray-400 hover:text-dental-primary" title="Make Printable (Thicken walls)">
+                        <i class="fas fa-print"></i>
+                    </button>
                     <button class="text-gray-400 hover:text-dental-primary">
                         <i class="fas fa-history"></i>
                     </button>
-                    <button class="text-gray-400 hover:text-dental-primary">
+                    <button id="saveButton" class="text-gray-400 hover:text-dental-primary" title="Export STL">
                         <i class="fas fa-save"></i>
                     </button>
                     <button id="clearButton" class="text-gray-400 hover:text-red-500">
@@ -432,6 +439,49 @@
                             </div>
                         </div>
                     </div>
+
+                    <div>
+                        <h3 class="font-medium mb-3">Tool Settings</h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Tool Strength</label>
+                                <div class="flex items-center space-x-3">
+                                    <input type="range" id="strengthSlider" min="0.1" max="3" step="0.1" value="1" class="w-full property-input">
+                                    <span id="strengthValue" class="text-xs w-8 text-center">1.0</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Influence Size (mm)</label>
+                                <div class="flex items-center space-x-3">
+                                    <input type="range" id="influenceSizeSlider" min="1" max="20" step="0.5" value="5" class="w-full property-input">
+                                    <span id="influenceSizeValue" class="text-xs w-8 text-center">5.0</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs text-gray-400">Show Tool Info</label>
+                                <input type="checkbox" id="showToolInfo" checked class="text-dental-primary">
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs text-gray-400">Show Grid</label>
+                                <input type="checkbox" id="showGrid" checked class="text-dental-primary">
+                            </div>
+
+                            <div class="text-xs text-gray-400 mt-3">
+                                <div><strong>Instructions:</strong></div>
+                                <div>• Select: Click model to select (highlighted)</div>
+                                <div>• Cut: Left-click + drag lasso to cut area</div>
+                                <div>• Add/Remove: Left-click + drag to sculpt</div>
+                                <div>• Smooth: Left-click + drag to smooth</div>
+                                <div>• Rotate: Click axis rings for constrained rotation (Red=X, Green=Y, Blue=Z)</div>
+                                <div>• Right-click + drag: Rotate view</div>
+                                <div>• Print button: Add dental base + thicken walls for 3D printing</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Materials Tab -->
@@ -463,7 +513,8 @@
         // Global variables
         let scene, camera, renderer, controls;
         let loadedModels = [];
-        let activeTool = 'pencil';
+        let selectedModel = null; // Currently selected model
+        let activeTool = 'select';
         let isDrawing = false;
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
@@ -471,11 +522,19 @@
         let maxUndoSteps = 20;
         let lassoPoints = [];
         let currentLassoPath = '';
+        let gridHelper; // Store grid helper reference
+        let rotationGizmo = null; // Rotation gizmo object
+        let rotationAxis = null; // Currently selected rotation axis (x, y, z)
+        let initialQuaternion = null; // Store initial rotation for smooth transitions
+        let rotationPlane = null; // Visual plane for rotation feedback
+        let previousAngle = 0; // Store previous angle for smooth rotation
         
         // Tool settings
         let toolSettings = {
             strength: 1.0,
-            showToolInfo: true
+            influenceSize: 5.0,
+            showToolInfo: true,
+            showGrid: true
         };
 
         // Initialize Three.js scene
@@ -523,7 +582,7 @@
             scene.add(hemisphereLight);
 
             // Add grid helper
-            const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+            gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
             gridHelper.position.y = -10;
             scene.add(gridHelper);
 
@@ -562,19 +621,20 @@
             
             // Update tool status
             const toolNames = {
-                'pencil': 'Pencil (Navigation)',
-                'ruler': 'Ruler (Measurement)',
+                'select': selectedModel ? `Select (${selectedModel.userData.filename || 'Model'} selected)` : 'Select (Click model to select)',
+                'addMaterial': `Add Material (Size: ${toolSettings.influenceSize.toFixed(1)}mm)`,
+                'removeMaterial': `Remove Material (Size: ${toolSettings.influenceSize.toFixed(1)}mm)`,
+                'smooth': `Smooth (Size: ${toolSettings.influenceSize.toFixed(1)}mm)`,
+                'measure': 'Measure (Click two points)',
                 'cut': 'Cut (Left-click+drag lasso to cut area)',
-                'addMaterial': 'Add Material (Left-click+drag to add)',
-                'removeMaterial': 'Remove Material (Left-click+drag to remove)',
-                'smooth': 'Smooth (Left-click+drag to smooth)',
+                'rotate': selectedModel ? `Rotate (${selectedModel.userData.filename || 'Model'})` : 'Rotate (Select model first)',
                 'layers': 'Layers'
             };
             
             document.getElementById('toolStatus').textContent = toolNames[toolName] || toolName;
             
             // Configure controls based on tool
-            if (['cut', 'addMaterial', 'removeMaterial', 'smooth'].includes(toolName)) {
+            if (['select', 'cut', 'addMaterial', 'removeMaterial', 'smooth', 'rotate'].includes(toolName)) {
                 // Tool mode - left click is reserved for tool operations
                 controls.mouseButtons.LEFT = null;
                 controls.enabled = true; // Keep orbit controls enabled for right-click
@@ -584,7 +644,330 @@
                 controls.enabled = true;
             }
             
+            // Show/hide rotation gizmo
+            if (toolName === 'rotate' && selectedModel) {
+                createRotationGizmo();
+            } else {
+                hideRotationGizmo();
+            }
+            
             console.log('🔧 Tool changed to:', toolName);
+        }
+
+        // Rotation Gizmo functions
+        function createRotationGizmo() {
+            if (rotationGizmo) {
+                scene.remove(rotationGizmo);
+                rotationGizmo = null;
+            }
+            
+            if (!selectedModel) return;
+            
+            rotationGizmo = new THREE.Group();
+            
+            // Get model's bounding box for proper gizmo sizing
+            selectedModel.geometry.computeBoundingBox();
+            const bbox = selectedModel.geometry.boundingBox;
+            const size = Math.max(
+                bbox.max.x - bbox.min.x,
+                bbox.max.y - bbox.min.y,
+                bbox.max.z - bbox.min.z
+            ) * 0.7; // Scale gizmo to 70% of model size
+            
+            // Create axis rings with better geometry
+            const ringGeometry = new THREE.TorusGeometry(size, size * 0.035, 16, 64);
+            
+            // X-axis ring (Red) - rotates around X axis
+            const xRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xff4444, 
+                transparent: true, 
+                opacity: 0.95,
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const xRing = new THREE.Mesh(ringGeometry, xRingMaterial);
+            xRing.rotation.y = Math.PI / 2;
+            xRing.userData = { axis: 'x', originalColor: 0xff4444 };
+            xRing.renderOrder = 1000; // Render on top
+            rotationGizmo.add(xRing);
+            
+            // Add arrow indicators for X-axis (positioned on the ring)
+            const arrowGeometry = new THREE.ConeGeometry(size * 0.04, size * 0.12, 8);
+            const xArrow1 = new THREE.Mesh(arrowGeometry, xRingMaterial.clone());
+            xArrow1.position.set(0, size * 0.8, 0); // Position on the ring
+            xArrow1.rotation.z = -Math.PI / 2;
+            xArrow1.userData = { axis: 'x', originalColor: 0xff4444 };
+            xArrow1.renderOrder = 1001; // Render above ring
+            rotationGizmo.add(xArrow1);
+            
+            const xArrow2 = new THREE.Mesh(arrowGeometry, xRingMaterial.clone());
+            xArrow2.position.set(0, -size * 0.8, 0);
+            xArrow2.rotation.z = Math.PI / 2;
+            xArrow2.userData = { axis: 'x', originalColor: 0xff4444 };
+            xArrow2.renderOrder = 1001;
+            rotationGizmo.add(xArrow2);
+            
+            const xArrow3 = new THREE.Mesh(arrowGeometry, xRingMaterial.clone());
+            xArrow3.position.set(0, 0, size * 0.8);
+            xArrow3.rotation.x = Math.PI / 2;
+            xArrow3.userData = { axis: 'x', originalColor: 0xff4444 };
+            xArrow3.renderOrder = 1001;
+            rotationGizmo.add(xArrow3);
+            
+            const xArrow4 = new THREE.Mesh(arrowGeometry, xRingMaterial.clone());
+            xArrow4.position.set(0, 0, -size * 0.8);
+            xArrow4.rotation.x = -Math.PI / 2;
+            xArrow4.userData = { axis: 'x', originalColor: 0xff4444 };
+            xArrow4.renderOrder = 1001;
+            rotationGizmo.add(xArrow4);
+            
+            // Y-axis ring (Green) - rotates around Y axis
+            const yRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x44ff44, 
+                transparent: true, 
+                opacity: 0.95,
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const yRing = new THREE.Mesh(ringGeometry, yRingMaterial);
+            yRing.userData = { axis: 'y', originalColor: 0x44ff44 };
+            yRing.renderOrder = 1000; // Render on top
+            rotationGizmo.add(yRing);
+            
+            // Add arrow indicators for Y-axis (positioned on the ring)
+            const yArrow1 = new THREE.Mesh(arrowGeometry, yRingMaterial.clone());
+            yArrow1.position.set(size * 0.8, 0, 0); // Position on the ring
+            yArrow1.rotation.z = Math.PI;
+            yArrow1.userData = { axis: 'y', originalColor: 0x44ff44 };
+            yArrow1.renderOrder = 1001;
+            rotationGizmo.add(yArrow1);
+            
+            const yArrow2 = new THREE.Mesh(arrowGeometry, yRingMaterial.clone());
+            yArrow2.position.set(-size * 0.8, 0, 0);
+            yArrow2.rotation.z = 0;
+            yArrow2.userData = { axis: 'y', originalColor: 0x44ff44 };
+            yArrow2.renderOrder = 1001;
+            rotationGizmo.add(yArrow2);
+            
+            const yArrow3 = new THREE.Mesh(arrowGeometry, yRingMaterial.clone());
+            yArrow3.position.set(0, 0, size * 0.8);
+            yArrow3.rotation.x = Math.PI / 2;
+            yArrow3.rotation.z = Math.PI / 2;
+            yArrow3.userData = { axis: 'y', originalColor: 0x44ff44 };
+            yArrow3.renderOrder = 1001;
+            rotationGizmo.add(yArrow3);
+            
+            const yArrow4 = new THREE.Mesh(arrowGeometry, yRingMaterial.clone());
+            yArrow4.position.set(0, 0, -size * 0.8);
+            yArrow4.rotation.x = -Math.PI / 2;
+            yArrow4.rotation.z = Math.PI / 2;
+            yArrow4.userData = { axis: 'y', originalColor: 0x44ff44 };
+            yArrow4.renderOrder = 1001;
+            rotationGizmo.add(yArrow4);
+            
+            // Z-axis ring (Blue) - rotates around Z axis
+            const zRingMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x4444ff, 
+                transparent: true, 
+                opacity: 0.95,
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const zRing = new THREE.Mesh(ringGeometry, zRingMaterial);
+            zRing.rotation.x = Math.PI / 2;
+            zRing.userData = { axis: 'z', originalColor: 0x4444ff };
+            zRing.renderOrder = 1000; // Render on top
+            rotationGizmo.add(zRing);
+            
+            // Add arrow indicators for Z-axis (positioned on the ring)
+            const zArrow1 = new THREE.Mesh(arrowGeometry, zRingMaterial.clone());
+            zArrow1.position.set(size * 0.8, 0, 0); // Position on the ring
+            zArrow1.rotation.y = -Math.PI / 2;
+            zArrow1.userData = { axis: 'z', originalColor: 0x4444ff };
+            zArrow1.renderOrder = 1001;
+            rotationGizmo.add(zArrow1);
+            
+            const zArrow2 = new THREE.Mesh(arrowGeometry, zRingMaterial.clone());
+            zArrow2.position.set(-size * 0.8, 0, 0);
+            zArrow2.rotation.y = Math.PI / 2;
+            zArrow2.userData = { axis: 'z', originalColor: 0x4444ff };
+            zArrow2.renderOrder = 1001;
+            rotationGizmo.add(zArrow2);
+            
+            const zArrow3 = new THREE.Mesh(arrowGeometry, zRingMaterial.clone());
+            zArrow3.position.set(0, size * 0.8, 0);
+            zArrow3.rotation.z = -Math.PI / 2;
+            zArrow3.rotation.y = Math.PI / 2;
+            zArrow3.userData = { axis: 'z', originalColor: 0x4444ff };
+            zArrow3.renderOrder = 1001;
+            rotationGizmo.add(zArrow3);
+            
+            const zArrow4 = new THREE.Mesh(arrowGeometry, zRingMaterial.clone());
+            zArrow4.position.set(0, -size * 0.8, 0);
+            zArrow4.rotation.z = Math.PI / 2;
+            zArrow4.rotation.y = Math.PI / 2;
+            zArrow4.userData = { axis: 'z', originalColor: 0x4444ff };
+            zArrow4.renderOrder = 1001;
+            rotationGizmo.add(zArrow4);
+            
+            // Add center sphere for free rotation
+            const centerGeometry = new THREE.SphereGeometry(size * 0.1, 16, 16);
+            const centerMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.6,
+                depthTest: false
+            });
+            const centerSphere = new THREE.Mesh(centerGeometry, centerMaterial);
+            centerSphere.userData = { axis: 'free' };
+            centerSphere.renderOrder = 1001;
+            rotationGizmo.add(centerSphere);
+            
+            // Position gizmo at model center
+            const modelCenter = new THREE.Vector3();
+            bbox.getCenter(modelCenter);
+            rotationGizmo.position.copy(modelCenter);
+            
+            // Ensure all gizmo objects have proper geometry computations for raycasting
+            rotationGizmo.traverse((child) => {
+                if (child.isMesh) {
+                    child.geometry.computeBoundingBox();
+                    child.geometry.computeBoundingSphere();
+                    child.matrixAutoUpdate = true;
+                    child.updateMatrix();
+                    child.updateMatrixWorld(true);
+                }
+            });
+            
+            scene.add(rotationGizmo);
+            
+            // Force update scene matrices
+            scene.updateMatrixWorld(true);
+            
+            console.log('🎯 Enhanced rotation gizmo created at position:', rotationGizmo.position);
+            console.log('🎯 Gizmo has', rotationGizmo.children.length, 'children ready for interaction');
+        }
+
+        function hideRotationGizmo() {
+            if (rotationGizmo) {
+                scene.remove(rotationGizmo);
+                rotationGizmo = null;
+                rotationAxis = null;
+                initialQuaternion = null;
+                hideRotationPlane();
+                console.log('🎯 Rotation gizmo hidden');
+            }
+        }
+
+        function highlightGizmoAxis(axis) {
+            if (!rotationGizmo) return;
+            
+            // Reset all axes to normal state
+            rotationGizmo.children.forEach(element => {
+                if (element.userData.originalColor && element.material) {
+                    if (element.material.color) element.material.color.setHex(element.userData.originalColor);
+                    if (element.material.opacity !== undefined) element.material.opacity = 0.95;
+                    if (element.material.emissive) element.material.emissive.setHex(0x000000);
+                    element.scale.set(1, 1, 1);
+                }
+            });
+            
+            // Highlight selected axis (including arrows)
+            if (axis && axis !== 'free') {
+                const targetElements = rotationGizmo.children.filter(element => element.userData.axis === axis);
+                targetElements.forEach(element => {
+                    if (element.material) {
+                        if (element.material.color) element.material.color.setHex(0xffffff);
+                        if (element.material.opacity !== undefined) element.material.opacity = 1.0;
+                        if (element.material.emissive) element.material.emissive.setHex(0x444444);
+                        element.scale.set(1.3, 1.3, 1.3); // Scale up selected axis and arrows
+                    }
+                });
+                showRotationPlane(axis);
+            } else if (axis === 'free') {
+                const centerSphere = rotationGizmo.children.find(element => element.userData.axis === 'free');
+                if (centerSphere && centerSphere.material) {
+                    if (centerSphere.material.color) centerSphere.material.color.setHex(0xffff00);
+                    if (centerSphere.material.opacity !== undefined) centerSphere.material.opacity = 1.0;
+                }
+            } else {
+                hideRotationPlane();
+            }
+        }
+
+        function showRotationPlane(axis) {
+            hideRotationPlane();
+            
+            if (!selectedModel || !rotationGizmo) return;
+            
+            const size = Math.max(
+                selectedModel.geometry.boundingBox.max.x - selectedModel.geometry.boundingBox.min.x,
+                selectedModel.geometry.boundingBox.max.y - selectedModel.geometry.boundingBox.min.y,
+                selectedModel.geometry.boundingBox.max.z - selectedModel.geometry.boundingBox.min.z
+            ) * 1.2;
+            
+            const planeGeometry = new THREE.CircleGeometry(size, 64);
+            const planeMaterial = new THREE.MeshBasicMaterial({
+                color: axis === 'x' ? 0xff4444 : axis === 'y' ? 0x44ff44 : 0x4444ff,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.DoubleSide,
+                depthTest: false
+            });
+            
+            rotationPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+            
+            // Orient plane based on rotation axis
+            if (axis === 'x') {
+                rotationPlane.rotation.y = Math.PI / 2;
+            } else if (axis === 'z') {
+                rotationPlane.rotation.x = Math.PI / 2;
+            }
+            // Y axis plane is already in correct orientation
+            
+            rotationPlane.position.copy(rotationGizmo.position);
+            rotationPlane.renderOrder = 999;
+            scene.add(rotationPlane);
+        }
+
+        function hideRotationPlane() {
+            if (rotationPlane) {
+                scene.remove(rotationPlane);
+                rotationPlane = null;
+            }
+        }
+
+        // Model selection functions
+        function selectModel(model) {
+            // Clear previous selection
+            if (selectedModel) {
+                selectedModel.material.emissive.setHex(0x000000);
+            }
+            
+            // Select new model
+            selectedModel = model;
+            if (selectedModel) {
+                selectedModel.material.emissive.setHex(0x333333); // Highlight selected model
+                console.log('📦 Model selected:', selectedModel.userData.filename || 'Unnamed');
+            }
+            
+            // Update tool status if using select or rotate tool
+            if (['select', 'rotate'].includes(activeTool)) {
+                selectTool(activeTool); // Refresh the tool status display
+            }
+            
+            // Refresh rotation gizmo if rotate tool is active
+            if (activeTool === 'rotate') {
+                createRotationGizmo();
+            }
+        }
+
+        function toggleModelVisibility(model) {
+            model.visible = !model.visible;
+            console.log('👁️ Model visibility:', model.visible ? 'shown' : 'hidden');
         }
 
         // Mouse event handling
@@ -600,7 +983,9 @@
         function onMouseDown(event) {
             if (event.button !== 0) return; // Only left click for tools
             
-            if (['cut', 'addMaterial', 'removeMaterial', 'smooth'].includes(activeTool)) {
+            console.log('🖱️ Mouse down - Tool:', activeTool, 'Button:', event.button);
+            
+            if (['select', 'cut', 'addMaterial', 'removeMaterial', 'smooth', 'rotate'].includes(activeTool)) {
                 event.preventDefault();
                 event.stopPropagation();
                 
@@ -609,11 +994,133 @@
                 mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
                 mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
                 
+                console.log('🖱️ Mouse coords:', mouse.x, mouse.y);
+                
+                // For rotate tool, first check if clicking on gizmo
+                if (activeTool === 'rotate' && rotationGizmo) {
+                    console.log('🎯 Checking gizmo intersection...');
+                    console.log('🎯 Gizmo children count:', rotationGizmo.children.length);
+                    console.log('🎯 Mouse coordinates:', mouse.x.toFixed(3), mouse.y.toFixed(3));
+                    console.log('🎯 Camera position:', camera.position.x.toFixed(2), camera.position.y.toFixed(2), camera.position.z.toFixed(2));
+                    
+                    raycaster.setFromCamera(mouse, camera);
+                    
+                    // Set raycaster parameters for better gizmo detection
+                    raycaster.params.Mesh.threshold = 0.1;
+                    raycaster.far = 1000;
+                    raycaster.near = 0.1;
+                    
+                    console.log('🎯 Raycaster ray origin:', raycaster.ray.origin.x.toFixed(2), raycaster.ray.origin.y.toFixed(2), raycaster.ray.origin.z.toFixed(2));
+                    console.log('🎯 Raycaster ray direction:', raycaster.ray.direction.x.toFixed(3), raycaster.ray.direction.y.toFixed(3), raycaster.ray.direction.z.toFixed(3));
+                    
+                    raycaster.setFromCamera(mouse, camera);
+                    
+                    // Get all gizmo children and ensure they're clickable
+                    const gizmoObjects = [];
+                    rotationGizmo.traverse((child) => {
+                        if (child.isMesh && child.userData.axis) {
+                            gizmoObjects.push(child);
+                        }
+                    });
+                    
+                    console.log('🎯 Gizmo clickable objects:', gizmoObjects.length);
+                    gizmoObjects.forEach((obj, index) => {
+                        console.log(`🎯   Object ${index}: axis=${obj.userData.axis}, position=${obj.position.x.toFixed(2)}, ${obj.position.y.toFixed(2)}, ${obj.position.z.toFixed(2)}`);
+                    });
+                    
+                    const gizmoIntersects = raycaster.intersectObjects(gizmoObjects, false);
+                    
+                    console.log('🎯 Gizmo intersects found:', gizmoIntersects.length);
+                    if (gizmoIntersects.length > 0) {
+                        console.log('🎯 Intersected object:', gizmoIntersects[0].object.userData);
+                        console.log('🎯 Intersection point:', gizmoIntersects[0].point);
+                        console.log('🎯 Distance:', gizmoIntersects[0].distance);
+                    }
+                    
+                    if (gizmoIntersects.length > 0) {
+                        // Clicked on gizmo axis
+                        rotationAxis = gizmoIntersects[0].object.userData.axis;
+                        console.log('🎯 GIZMO CLICKED! Axis:', rotationAxis);
+                        highlightGizmoAxis(rotationAxis);
+                        isDrawing = true;
+                        
+                        // Disable orbit controls during rotation
+                        controls.enabled = false;
+                        
+                        // Store initial state for quaternion rotation
+                        if (selectedModel) {
+                            initialQuaternion = selectedModel.quaternion.clone();
+                            
+                            // Calculate initial angle from gizmo center to mouse position
+                            const gizmoScreenPos = new THREE.Vector3();
+                            gizmoScreenPos.copy(rotationGizmo.position);
+                            gizmoScreenPos.project(camera);
+                            
+                            // Convert to screen coordinates for initial angle calculation
+                            const rect = renderer.domElement.getBoundingClientRect();
+                            const gizmoScreenX = ((gizmoScreenPos.x + 1) / 2) * rect.width;
+                            const gizmoScreenY = ((-gizmoScreenPos.y + 1) / 2) * rect.height;
+                            const mouseScreenX = event.clientX - rect.left;
+                            const mouseScreenY = event.clientY - rect.top;
+                            
+                            previousAngle = Math.atan2(
+                                mouseScreenY - gizmoScreenY,
+                                mouseScreenX - gizmoScreenX
+                            );
+                            
+                            console.log('🎯 Initial angle set:', previousAngle);
+                        }
+                        
+                        mouse.lastX = event.clientX;
+                        mouse.lastY = event.clientY;
+                        saveUndoState();
+                        console.log('🎯 Rotation axis selected:', rotationAxis);
+                        return;
+                    } else {
+                        console.log('🎯 No gizmo intersection found');
+                    }
+                }
+                
                 // Check if we're clicking on an STL model
                 raycaster.setFromCamera(mouse, camera);
                 const intersects = raycaster.intersectObjects(loadedModels);
                 
                 if (intersects.length > 0) {
+                    const clickedModel = intersects[0].object;
+                    console.log('📦 Model clicked:', clickedModel.userData.filename);
+                    
+                    if (activeTool === 'select') {
+                        // Select the clicked model
+                        selectModel(clickedModel);
+                        return;
+                    } else if (activeTool === 'rotate') {
+                        // Only rotate if we have a selected model and it's the clicked one
+                        if (!selectedModel) {
+                            selectModel(clickedModel);
+                            return;
+                        }
+                        if (clickedModel !== selectedModel) {
+                            selectModel(clickedModel);
+                            return;
+                        }
+                        // If no gizmo axis selected, allow free rotation
+                        if (!rotationAxis) {
+                            console.log('🎯 Starting free rotation on model');
+                            isDrawing = true;
+                            mouse.lastX = event.clientX;
+                            mouse.lastY = event.clientY;
+                            
+                            // Store initial quaternion for free rotation
+                            initialQuaternion = selectedModel.quaternion.clone();
+                            rotationAxis = 'free';
+                            highlightGizmoAxis('free');
+                            
+                            saveUndoState();
+                        }
+                        return;
+                    }
+                    
+                    // For other tools, continue with existing logic
                     isDrawing = true;
                     
                     if (activeTool === 'cut') {
@@ -628,8 +1135,6 @@
         }
 
         function onMouseMove(event) {
-            if (!isDrawing) return;
-            
             event.preventDefault();
             
             const rect = renderer.domElement.getBoundingClientRect();
@@ -639,9 +1144,130 @@
             mouse.x = (screenX / rect.width) * 2 - 1;
             mouse.y = -(screenY / rect.height) * 2 + 1;
             
+            // Handle gizmo hover highlighting when rotate tool is active but not drawing
+            if (activeTool === 'rotate' && rotationGizmo && !isDrawing) {
+                raycaster.setFromCamera(mouse, camera);
+                
+                // Get all gizmo children and ensure they're hoverable
+                const gizmoObjects = [];
+                rotationGizmo.traverse((child) => {
+                    if (child.isMesh && child.userData.axis) {
+                        gizmoObjects.push(child);
+                    }
+                });
+                
+                const gizmoIntersects = raycaster.intersectObjects(gizmoObjects, false);
+                
+                if (gizmoIntersects.length > 0) {
+                    const hoveredAxis = gizmoIntersects[0].object.userData.axis;
+                    console.log('🎯 Hovering over axis:', hoveredAxis);
+                    highlightGizmoAxis(hoveredAxis);
+                    renderer.domElement.style.cursor = 'grab';
+                } else {
+                    highlightGizmoAxis(null);
+                    renderer.domElement.style.cursor = 'default';
+                }
+            }
+            
+            // Change cursor when actively rotating
+            if (isDrawing && activeTool === 'rotate' && rotationAxis) {
+                renderer.domElement.style.cursor = 'grabbing';
+            }
+            
+            if (!isDrawing) return;
+            
             if (activeTool === 'cut') {
                 // Continue lasso drawing
                 updateLasso(screenX, screenY);
+            } else if (activeTool === 'rotate' && selectedModel && rotationAxis) {
+                // Apply quaternion-based rotation
+                const deltaX = event.clientX - mouse.lastX;
+                const deltaY = event.clientY - mouse.lastY;
+                
+                console.log('🔄 Rotating - Axis:', rotationAxis, 'Delta:', deltaX, deltaY);
+                
+                if (rotationAxis === 'free') {
+                    // Free rotation using screen-space movement
+                    const rotationSpeed = 0.01;
+                    
+                    // Create rotation quaternions for X and Y axes
+                    const rotX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), deltaY * rotationSpeed);
+                    const rotY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaX * rotationSpeed);
+                    
+                    // Combine rotations
+                    const combinedRotation = new THREE.Quaternion();
+                    combinedRotation.multiplyQuaternions(rotY, rotX);
+                    
+                    // Apply to current quaternion
+                    const newQuaternion = new THREE.Quaternion();
+                    newQuaternion.multiplyQuaternions(combinedRotation, initialQuaternion);
+                    selectedModel.quaternion.copy(newQuaternion);
+                    
+                    // Update initial quaternion for smooth continued rotation
+                    initialQuaternion.copy(newQuaternion);
+                    console.log('🔄 Free rotation applied');
+                } else if (['x', 'y', 'z'].includes(rotationAxis)) {
+                    // Constrained axis rotation using circular motion around the gizmo
+                    const gizmoScreenPos = new THREE.Vector3();
+                    gizmoScreenPos.copy(rotationGizmo.position);
+                    gizmoScreenPos.project(camera);
+                    
+                    // Convert to screen coordinates
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    const gizmoScreenX = ((gizmoScreenPos.x + 1) / 2) * rect.width;
+                    const gizmoScreenY = ((-gizmoScreenPos.y + 1) / 2) * rect.height;
+                    
+                    // Calculate current angle from gizmo center to mouse position
+                    const currentMouseX = event.clientX - rect.left;
+                    const currentMouseY = event.clientY - rect.top;
+                    
+                    let currentAngle, deltaAngle;
+                    
+                    if (rotationAxis === 'x') {
+                        // For X-axis rotation, use Y-Z plane (mouse Y and distance from center)
+                        currentAngle = Math.atan2(currentMouseY - gizmoScreenY, currentMouseX - gizmoScreenX);
+                        deltaAngle = currentAngle - previousAngle;
+                    } else if (rotationAxis === 'y') {
+                        // For Y-axis rotation, use X-Z plane (mouse X and distance from center)
+                        currentAngle = Math.atan2(currentMouseY - gizmoScreenY, currentMouseX - gizmoScreenX);
+                        deltaAngle = currentAngle - previousAngle;
+                    } else if (rotationAxis === 'z') {
+                        // For Z-axis rotation, use X-Y plane (circular motion)
+                        currentAngle = Math.atan2(currentMouseY - gizmoScreenY, currentMouseX - gizmoScreenX);
+                        deltaAngle = currentAngle - previousAngle;
+                    }
+                    
+                    // Smooth out large jumps (when angle wraps around)
+                    if (Math.abs(deltaAngle) > Math.PI) {
+                        deltaAngle = deltaAngle > 0 ? deltaAngle - 2 * Math.PI : deltaAngle + 2 * Math.PI;
+                    }
+                    
+                    // Apply sensitivity factor
+                    deltaAngle *= 1.5; // Make rotation more responsive
+                    
+                    // Create rotation quaternion based on selected axis
+                    const rotationQuaternion = new THREE.Quaternion();
+                    
+                    if (rotationAxis === 'x') {
+                        rotationQuaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), deltaAngle);
+                    } else if (rotationAxis === 'y') {
+                        rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), deltaAngle);
+                    } else if (rotationAxis === 'z') {
+                        rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), deltaAngle);
+                    }
+                    
+                    // Apply rotation using quaternion multiplication
+                    const newQuaternion = new THREE.Quaternion();
+                    newQuaternion.multiplyQuaternions(rotationQuaternion, initialQuaternion);
+                    selectedModel.quaternion.copy(newQuaternion);
+                    
+                    // Update for next frame
+                    initialQuaternion.copy(newQuaternion);
+                    previousAngle = currentAngle;
+                }
+                
+                mouse.lastX = event.clientX;
+                mouse.lastY = event.clientY;
             } else {
                 // Apply material tools
                 raycaster.setFromCamera(mouse, camera);
@@ -662,6 +1288,14 @@
                 if (activeTool === 'cut') {
                     // Complete lasso and perform cut
                     completeLasso();
+                } else if (activeTool === 'rotate') {
+                    // Reset rotation state and re-enable orbit controls
+                    rotationAxis = null;
+                    initialQuaternion = null;
+                    previousAngle = 0;
+                    highlightGizmoAxis(null);
+                    controls.enabled = true; // Re-enable orbit controls
+                    console.log('🎯 Rotation completed with quaternions');
                 }
             }
         }
@@ -799,7 +1433,7 @@
             const geometry = model.geometry;
             const positions = geometry.attributes.position.array;
             
-            const radius = 5.0; // Fixed radius for now
+            const radius = toolSettings.influenceSize; // Use configurable influence size
             
             // Apply tool effect to nearby vertices
             for (let i = 0; i < positions.length; i += 3) {
@@ -839,6 +1473,432 @@
             geometry.computeVertexNormals();
         }
 
+        // Make printable function - add dental base and thicken walls inward for 3D printing
+        function makePrintable(thicknessInMm = 2.0) {
+            if (!selectedModel) {
+                alert('Please select a model first');
+                return;
+            }
+            
+            console.log('🖨️ Creating professional dental base with support posts and curved platform');
+            
+            // Save undo state
+            saveUndoState();
+            
+            const originalGeometry = selectedModel.geometry;
+            const positions = originalGeometry.attributes.position.array;
+            const normals = originalGeometry.attributes.normal.array;
+            
+            // Find the bounding box to create a proper base
+            originalGeometry.computeBoundingBox();
+            const bbox = originalGeometry.boundingBox;
+            
+            // Create inner surface by offsetting vertices inward
+            const innerPositions = new Float32Array(positions.length);
+            
+            for (let i = 0; i < positions.length; i += 3) {
+                // Get vertex position
+                const x = positions[i];
+                const y = positions[i + 1];
+                const z = positions[i + 2];
+                
+                // Get vertex normal (invert for inward direction)
+                const nx = -normals[i];
+                const ny = -normals[i + 1];  
+                const nz = -normals[i + 2];
+                
+                // Offset vertex inward along inverted normal
+                innerPositions[i] = x + (nx * thicknessInMm);
+                innerPositions[i + 1] = y + (ny * thicknessInMm);
+                innerPositions[i + 2] = z + (nz * thicknessInMm);
+            }
+            
+            // Professional dental base parameters
+            const baseY = bbox.min.y - 8; // Base positioned lower for better support
+            const baseThickness = 4.0; // Thicker base for stability
+            const platformHeight = 3.0; // Raised platform height
+            const archWidth = (bbox.max.x - bbox.min.x);
+            const archDepth = (bbox.max.z - bbox.min.z);
+            const baseCenterX = (bbox.max.x + bbox.min.x) / 2;
+            const baseCenterZ = (bbox.max.z + bbox.min.z) / 2;
+            
+            // Create curved dental platform (follows arch shape)
+            const platformVertices = [];
+            const platformRadius = Math.max(archWidth, archDepth) * 0.6;
+            const platformSegments = 32;
+            
+            for (let i = 0; i < platformSegments; i++) {
+                const angle1 = (i / platformSegments) * Math.PI * 2;
+                const angle2 = ((i + 1) / platformSegments) * Math.PI * 2;
+                
+                const x1 = baseCenterX + Math.cos(angle1) * platformRadius;
+                const z1 = baseCenterZ + Math.sin(angle1) * platformRadius;
+                const x2 = baseCenterX + Math.cos(angle2) * platformRadius;
+                const z2 = baseCenterZ + Math.sin(angle2) * platformRadius;
+                
+                // Top surface of curved platform
+                platformVertices.push(
+                    baseCenterX, bbox.min.y - 1, baseCenterZ,
+                    x1, bbox.min.y - 1, z1,
+                    x2, bbox.min.y - 1, z2
+                );
+                
+                // Side walls of platform
+                platformVertices.push(
+                    x1, bbox.min.y - 1, z1,
+                    x1, bbox.min.y - 1 - platformHeight, z1,
+                    x2, bbox.min.y - 1 - platformHeight, z2,
+                    
+                    x1, bbox.min.y - 1, z1,
+                    x2, bbox.min.y - 1 - platformHeight, z2,
+                    x2, bbox.min.y - 1, z2
+                );
+            }
+            
+            // Create support posts (like in your reference images)
+            const postVertices = [];
+            const postRadius = 1.5; // Post radius
+            const postHeight = 8.0; // Post height
+            const postSegments = 12;
+            
+            // Position support posts around the dental arch
+            const postPositions = [
+                { x: baseCenterX - archWidth * 0.4, z: baseCenterZ - archDepth * 0.3 },
+                { x: baseCenterX + archWidth * 0.4, z: baseCenterZ - archDepth * 0.3 },
+                { x: baseCenterX - archWidth * 0.4, z: baseCenterZ + archDepth * 0.3 },
+                { x: baseCenterX + archWidth * 0.4, z: baseCenterZ + archDepth * 0.3 },
+                { x: baseCenterX, z: baseCenterZ - archDepth * 0.5 },
+                { x: baseCenterX, z: baseCenterZ + archDepth * 0.5 }
+            ];
+            
+            postPositions.forEach(pos => {
+                // Create cylindrical support post
+                for (let i = 0; i < postSegments; i++) {
+                    const angle1 = (i / postSegments) * Math.PI * 2;
+                    const angle2 = ((i + 1) / postSegments) * Math.PI * 2;
+                    
+                    const x1 = pos.x + Math.cos(angle1) * postRadius;
+                    const z1 = pos.z + Math.sin(angle1) * postRadius;
+                    const x2 = pos.x + Math.cos(angle2) * postRadius;
+                    const z2 = pos.z + Math.sin(angle2) * postRadius;
+                    
+                    // Post cylinder walls
+                    postVertices.push(
+                        x1, bbox.min.y - 1 - platformHeight, z1,
+                        x1, baseY, z1,
+                        x2, baseY, z2,
+                        
+                        x1, bbox.min.y - 1 - platformHeight, z1,
+                        x2, baseY, z2,
+                        x2, bbox.min.y - 1 - platformHeight, z2
+                    );
+                }
+                
+                // Post top cap (connecting to platform)
+                for (let i = 0; i < postSegments; i++) {
+                    const angle1 = (i / postSegments) * Math.PI * 2;
+                    const angle2 = ((i + 1) / postSegments) * Math.PI * 2;
+                    
+                    const x1 = pos.x + Math.cos(angle1) * postRadius;
+                    const z1 = pos.z + Math.sin(angle1) * postRadius;
+                    const x2 = pos.x + Math.cos(angle2) * postRadius;
+                    const z2 = pos.z + Math.sin(angle2) * postRadius;
+                    
+                    postVertices.push(
+                        pos.x, bbox.min.y - 1 - platformHeight, pos.z,
+                        x1, bbox.min.y - 1 - platformHeight, z1,
+                        x2, bbox.min.y - 1 - platformHeight, z2
+                    );
+                }
+                
+                // Post bottom cap (on base)
+                for (let i = 0; i < postSegments; i++) {
+                    const angle1 = (i / postSegments) * Math.PI * 2;
+                    const angle2 = ((i + 1) / postSegments) * Math.PI * 2;
+                    
+                    const x1 = pos.x + Math.cos(angle1) * postRadius;
+                    const z1 = pos.z + Math.sin(angle1) * postRadius;
+                    const x2 = pos.x + Math.cos(angle2) * postRadius;
+                    const z2 = pos.z + Math.sin(angle2) * postRadius;
+                    
+                    postVertices.push(
+                        pos.x, baseY, pos.z,
+                        x2, baseY, z2,
+                        x1, baseY, z1
+                    );
+                }
+            });
+            
+            // Create main base platform
+            const baseVertices = [];
+            const baseWidth = archWidth + 20; // Extended base for stability
+            const baseDepth = archDepth + 20;
+            
+            const baseCorners = [
+                [baseCenterX - baseWidth/2, baseY, baseCenterZ - baseDepth/2],
+                [baseCenterX + baseWidth/2, baseY, baseCenterZ - baseDepth/2],
+                [baseCenterX + baseWidth/2, baseY, baseCenterZ + baseDepth/2],
+                [baseCenterX - baseWidth/2, baseY, baseCenterZ + baseDepth/2],
+                [baseCenterX - baseWidth/2, baseY - baseThickness, baseCenterZ - baseDepth/2],
+                [baseCenterX + baseWidth/2, baseY - baseThickness, baseCenterZ - baseDepth/2],
+                [baseCenterX + baseWidth/2, baseY - baseThickness, baseCenterZ + baseDepth/2],
+                [baseCenterX - baseWidth/2, baseY - baseThickness, baseCenterZ + baseDepth/2]
+            ];
+            
+            // Top face
+            baseVertices.push(
+                ...baseCorners[0], ...baseCorners[1], ...baseCorners[2],
+                ...baseCorners[0], ...baseCorners[2], ...baseCorners[3]
+            );
+            
+            // Bottom face
+            baseVertices.push(
+                ...baseCorners[4], ...baseCorners[6], ...baseCorners[5],
+                ...baseCorners[4], ...baseCorners[7], ...baseCorners[6]
+            );
+            
+            // Side faces
+            const sides = [
+                [0, 5, 1, 0, 4, 5], // Front
+                [1, 6, 2, 1, 5, 6], // Right
+                [2, 7, 3, 2, 6, 7], // Back
+                [3, 4, 0, 3, 7, 4]  // Left
+            ];
+            
+            sides.forEach(side => {
+                baseVertices.push(
+                    ...baseCorners[side[0]], ...baseCorners[side[1]], ...baseCorners[side[2]],
+                    ...baseCorners[side[3]], ...baseCorners[side[4]], ...baseCorners[side[5]]
+                );
+            });
+            
+            // Combine all surfaces
+            const combinedVertices = [];
+            
+            // Add outer surface (original dental arch)
+            for (let i = 0; i < positions.length; i += 9) {
+                combinedVertices.push(
+                    positions[i], positions[i + 1], positions[i + 2],
+                    positions[i + 3], positions[i + 4], positions[i + 5],
+                    positions[i + 6], positions[i + 7], positions[i + 8]
+                );
+            }
+            
+            // Add inner surface (for wall thickness)
+            for (let i = 0; i < innerPositions.length; i += 9) {
+                combinedVertices.push(
+                    innerPositions[i + 6], innerPositions[i + 7], innerPositions[i + 8],
+                    innerPositions[i + 3], innerPositions[i + 4], innerPositions[i + 5],
+                    innerPositions[i], innerPositions[i + 1], innerPositions[i + 2]
+                );
+            }
+            
+            // Add connecting walls between outer and inner surfaces
+            const bottomVertices = [];
+            for (let i = 0; i < positions.length; i += 3) {
+                const y = positions[i + 1];
+                if (y <= bbox.min.y + 1) { // Near the bottom of the arch
+                    const outerX = positions[i];
+                    const outerY = positions[i + 1];
+                    const outerZ = positions[i + 2];
+                    const innerX = innerPositions[i];
+                    const innerY = innerPositions[i + 1];
+                    const innerZ = innerPositions[i + 2];
+                    
+                    bottomVertices.push(
+                        outerX, bbox.min.y - 1, outerZ,
+                        innerX, bbox.min.y - 1, innerZ,
+                        outerX, outerY, outerZ,
+                        
+                        innerX, bbox.min.y - 1, innerZ,
+                        innerX, innerY, innerZ,
+                        outerX, outerY, outerZ
+                    );
+                }
+            }
+            
+            // Add all components
+            combinedVertices.push(...baseVertices);          // Main base platform
+            combinedVertices.push(...platformVertices);      // Curved dental platform
+            combinedVertices.push(...postVertices);          // Support posts
+            combinedVertices.push(...bottomVertices);        // Connecting walls
+            
+            // Create new geometry with professional dental base
+            const newGeometry = new THREE.BufferGeometry();
+            newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(combinedVertices, 3));
+            newGeometry.computeVertexNormals();
+            newGeometry.computeBoundingBox();
+            
+            // Update the model's geometry
+            originalGeometry.dispose();
+            selectedModel.geometry = newGeometry;
+            
+            // Update filename to indicate it's printable
+            if (selectedModel.userData.filename) {
+                selectedModel.userData.filename = selectedModel.userData.filename.replace('.stl', '_professional_dental_base.stl');
+                selectTool(activeTool); // Refresh status display
+            }
+            
+            console.log('✅ Professional dental base created with curved platform and support posts');
+        }
+
+        // STL Export functionality
+        function exportSTL(model = null) {
+            const modelToExport = model || selectedModel;
+            
+            if (!modelToExport) {
+                alert('Please select a model to export');
+                return;
+            }
+            
+            console.log('💾 Exporting STL for:', modelToExport.userData.filename || 'model');
+            
+            // Get the geometry from the model
+            const geometry = modelToExport.geometry;
+            const positions = geometry.attributes.position.array;
+            
+            // Create STL content (ASCII format for better compatibility)
+            let stlContent = `solid ${modelToExport.userData.filename || 'exported_model'}\n`;
+            
+            // Process each triangle (3 vertices per face)
+            for (let i = 0; i < positions.length; i += 9) {
+                // Get vertices of the triangle
+                const v1 = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
+                const v2 = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
+                const v3 = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]);
+                
+                // Apply model transformations (rotation, scale, position)
+                v1.applyMatrix4(modelToExport.matrixWorld);
+                v2.applyMatrix4(modelToExport.matrixWorld);
+                v3.applyMatrix4(modelToExport.matrixWorld);
+                
+                // Calculate face normal
+                const normal = new THREE.Vector3();
+                const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                normal.crossVectors(edge1, edge2).normalize();
+                
+                // Write triangle to STL format
+                stlContent += `  facet normal ${normal.x.toExponential(6)} ${normal.y.toExponential(6)} ${normal.z.toExponential(6)}\n`;
+                stlContent += `    outer loop\n`;
+                stlContent += `      vertex ${v1.x.toExponential(6)} ${v1.y.toExponential(6)} ${v1.z.toExponential(6)}\n`;
+                stlContent += `      vertex ${v2.x.toExponential(6)} ${v2.y.toExponential(6)} ${v2.z.toExponential(6)}\n`;
+                stlContent += `      vertex ${v3.x.toExponential(6)} ${v3.y.toExponential(6)} ${v3.z.toExponential(6)}\n`;
+                stlContent += `    endloop\n`;
+                stlContent += `  endfacet\n`;
+            }
+            
+            stlContent += `endsolid ${modelToExport.userData.filename || 'exported_model'}\n`;
+            
+            // Create and download the file
+            const blob = new Blob([stlContent], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.href = url;
+            
+            // Generate filename
+            let filename = modelToExport.userData.filename || 'exported_model.stl';
+            if (!filename.toLowerCase().endsWith('.stl')) {
+                filename += '.stl';
+            }
+            
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up
+            URL.revokeObjectURL(url);
+            
+            console.log('✅ STL exported successfully:', filename);
+        }
+        
+        // Export all models as separate STL files
+        function exportAllSTL() {
+            if (loadedModels.length === 0) {
+                alert('No models to export');
+                return;
+            }
+            
+            console.log('💾 Exporting all models as STL files...');
+            
+            loadedModels.forEach((model, index) => {
+                // Add a small delay between exports to avoid browser issues
+                setTimeout(() => {
+                    exportSTL(model);
+                }, index * 100);
+            });
+        }
+        
+        // Enhanced export with options
+        function showExportDialog() {
+            if (loadedModels.length === 0) {
+                alert('No models to export');
+                return;
+            }
+            
+            // Create export dialog
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            dialog.innerHTML = `
+                <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 class="text-lg font-semibold text-white mb-4">Export STL</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-2">Export Option:</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center text-white">
+                                    <input type="radio" name="exportType" value="selected" class="mr-2" ${selectedModel ? 'checked' : 'disabled'}>
+                                    Export Selected Model ${selectedModel ? `(${selectedModel.userData.filename || 'Unnamed'})` : '(None selected)'}
+                                </label>
+                                <label class="flex items-center text-white">
+                                    <input type="radio" name="exportType" value="all" class="mr-2" ${!selectedModel ? 'checked' : ''}>
+                                    Export All Models (${loadedModels.length} files)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-2">File Format:</label>
+                            <select class="w-full bg-gray-700 text-white rounded px-3 py-2" id="exportFormat">
+                                <option value="ascii">STL ASCII (Compatible)</option>
+                                <option value="binary">STL Binary (Compact)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700" onclick="this.closest('.fixed').remove()">
+                            Cancel
+                        </button>
+                        <button class="px-4 py-2 bg-dental-primary text-white rounded hover:bg-orange-600" onclick="performExport()">
+                            Export
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            
+            // Add export function to window for onclick access
+            window.performExport = function() {
+                const exportType = document.querySelector('input[name="exportType"]:checked').value;
+                const format = document.getElementById('exportFormat').value;
+                
+                if (exportType === 'selected') {
+                    exportSTL(selectedModel);
+                } else {
+                    exportAllSTL();
+                }
+                
+                dialog.remove();
+                delete window.performExport; // Clean up
+            };
+        }
+
         // STL Loading
         function loadSTL(file) {
             const loader = new THREE.STLLoader();
@@ -865,14 +1925,23 @@
                     mesh.castShadow = true;
                     mesh.receiveShadow = true;
                     
+                    // Store filename for reference
+                    mesh.userData.filename = file.name;
+                    mesh.userData.visible = true;
+                    
                     scene.add(mesh);
                     loadedModels.push(mesh);
+
+                    // Auto-select first model
+                    if (loadedModels.length === 1) {
+                        selectModel(mesh);
+                    }
 
                     // Update camera to fit model
                     fitCameraToObject(camera, controls, mesh, 1.5);
                     
-                    // Add to file list
-                    addToFileList(file.name);
+                    // Add to file list with visibility toggle
+                    addToFileList(file.name, mesh);
                     
                     console.log('✅ STL loaded:', file.name);
                 } catch (error) {
@@ -901,15 +1970,41 @@
             controls.update();
         }
 
-        function addToFileList(filename) {
+        function addToFileList(filename, model) {
             const fileList = document.querySelector('.space-y-1.max-h-40.overflow-y-auto');
             const fileElement = document.createElement('div');
             fileElement.className = 'flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm';
             fileElement.innerHTML = `
                 <i class="fas fa-file text-dental-primary"></i>
                 <span class="truncate flex-1">${filename}</span>
-                <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+                <button class="select-model-btn text-gray-400 hover:text-dental-primary cursor-pointer" title="Select Model">
+                    <i class="fas fa-mouse-pointer"></i>
+                </button>
+                <button class="toggle-visibility-btn text-dental-primary hover:text-gray-400 cursor-pointer" title="Toggle Visibility">
+                    <i class="fas fa-eye"></i>
+                </button>
             `;
+            
+            // Add event listeners
+            const selectBtn = fileElement.querySelector('.select-model-btn');
+            selectBtn.addEventListener('click', () => {
+                selectModel(model);
+                selectTool('select');
+            });
+            
+            const visibilityBtn = fileElement.querySelector('.toggle-visibility-btn');
+            visibilityBtn.addEventListener('click', () => {
+                toggleModelVisibility(model);
+                const icon = visibilityBtn.querySelector('i');
+                if (model.visible) {
+                    icon.className = 'fas fa-eye';
+                    visibilityBtn.className = 'toggle-visibility-btn text-dental-primary hover:text-gray-400 cursor-pointer';
+                } else {
+                    icon.className = 'fas fa-eye-slash';
+                    visibilityBtn.className = 'toggle-visibility-btn text-gray-400 hover:text-dental-primary cursor-pointer';
+                }
+            });
+            
             fileList.appendChild(fileElement);
         }
 
@@ -962,7 +2057,9 @@
                 model.material.dispose();
             });
             loadedModels = [];
+            selectedModel = null;
             undoStack = [];
+            hideRotationGizmo(); // Hide gizmo when clearing
             updateUndoButton();
             
             document.querySelector('.space-y-1.max-h-40.overflow-y-auto').innerHTML = `
@@ -1041,6 +2138,41 @@
             // Button handlers
             document.getElementById('undoButton').addEventListener('click', performUndo);
             document.getElementById('clearButton').addEventListener('click', clearAll);
+            document.getElementById('makePrintableButton').addEventListener('click', () => makePrintable(2.0));
+            document.getElementById('saveButton').addEventListener('click', showExportDialog);
+            
+            // Tool settings controls
+            const strengthSlider = document.getElementById('strengthSlider');
+            const strengthValue = document.getElementById('strengthValue');
+            const influenceSizeSlider = document.getElementById('influenceSizeSlider');
+            const influenceSizeValue = document.getElementById('influenceSizeValue');
+            const showToolInfoCheckbox = document.getElementById('showToolInfo');
+            const showGridCheckbox = document.getElementById('showGrid');
+            
+            strengthSlider.oninput = function() {
+                toolSettings.strength = parseFloat(this.value);
+                strengthValue.textContent = toolSettings.strength.toFixed(1);
+            };
+            
+            influenceSizeSlider.oninput = function() {
+                toolSettings.influenceSize = parseFloat(this.value);
+                influenceSizeValue.textContent = toolSettings.influenceSize.toFixed(1);
+                
+                // Update tool status if using a material tool
+                if (['addMaterial', 'removeMaterial', 'smooth'].includes(activeTool)) {
+                    selectTool(activeTool); // Refresh the tool status display
+                }
+            };
+            
+            showToolInfoCheckbox.onchange = function() {
+                toolSettings.showToolInfo = this.checked;
+            };
+            
+            showGridCheckbox.onchange = function() {
+                toolSettings.showGrid = this.checked;
+                gridHelper.visible = this.checked;
+                console.log('Grid visibility:', this.checked ? 'shown' : 'hidden');
+            };
             
             // Tab switching (keeping existing functionality)
             const tabButtons = document.querySelectorAll('.tab-button');
@@ -1092,8 +2224,13 @@
                     performUndo();
                 }
                 
+                if (e.ctrlKey && e.key === 's') {
+                    e.preventDefault();
+                    showExportDialog();
+                }
+                
                 if (e.key >= '1' && e.key <= '7') {
-                    const tools = ['pencil', 'ruler', 'cut', 'addMaterial', 'removeMaterial', 'smooth', 'layers'];
+                    const tools = ['select', 'addMaterial', 'removeMaterial', 'smooth', 'measure', 'cut', 'rotate'];
                     const toolIndex = parseInt(e.key) - 1;
                     if (toolIndex < tools.length) {
                         selectTool(tools[toolIndex]);
