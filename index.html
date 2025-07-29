@@ -1,13 +1,1110 @@
-<!doctype html>
-<html lang="en" class="h-full">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DentalCAD Pro - Professional Dental Design Software</title>
-  </head>
-  <body class="h-full">
-    <div id="root" class="h-full"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DentalCAD Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dental: {
+                            primary: '#f97316',
+                            secondary: '#ea580c',
+                            dark: '#0c0a09',
+                            light: '#f5f5f4',
+                            accent: '#fdba74',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-effect {
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background-color: rgba(15, 23, 42, 0.8);
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        .tool-button {
+            transition: all 0.2s ease;
+        }
+
+            .tool-button.active {
+                background-color: #f97316;
+                color: white;
+                box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.5);
+            }
+
+        .property-input {
+            background-color: rgba(31, 41, 55, 0.6);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+        }
+
+            .property-input:focus {
+                border-color: #f97316;
+                box-shadow: 0 0 0 1px #f97316;
+            }
+
+        .tab-content {
+            display: none;
+        }
+
+            .tab-content.active {
+                display: block;
+            }
+
+        /* STL upload dropzone */
+        .dropzone {
+            border: 2px dashed rgba(249, 115, 22, 0.3);
+            transition: all 0.3s ease;
+        }
+
+            .dropzone.active {
+                border-color: #f97316;
+                background-color: rgba(249, 115, 22, 0.05);
+            }
+
+        /* Lasso drawing */
+        .lasso-line {
+            fill: none;
+            stroke: #f97316;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body class="h-full overflow-hidden text-gray-200">
+    <div class="flex h-full">
+        <!-- Sidebar -->
+        <div class="w-16 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-4 space-y-6">
+            <!-- Logo -->
+            <div class="w-10 h-10 rounded-md bg-dental-primary flex items-center justify-center text-white font-bold">
+                DC
+            </div>
+
+            <!-- Tools -->
+            <div class="flex flex-col items-center space-y-4 w-full">
+                <button class="tool-button active w-12 h-12 rounded-lg flex items-center justify-center text-dental-primary hover:bg-gray-800" data-tool="pencil">
+                    <i class="fas fa-pencil-alt text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="ruler">
+                    <i class="fas fa-ruler-combined text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="cut">
+                    <i class="fas fa-cut text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="addMaterial">
+                    <i class="fas fa-plus text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="removeMaterial">
+                    <i class="fas fa-minus text-lg"></i>
+                </button>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="smooth">
+                    <i class="fas fa-magic text-lg"></i>
+                </button>
+
+                <div class="border-t border-gray-800 w-8 mx-auto"></div>
+
+                <button class="tool-button w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="layers">
+                    <i class="fas fa-layer-group text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-auto flex flex-col items-center space-y-4">
+                <button id="undoButton" class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-undo text-lg"></i>
+                </button>
+                <button class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-cog text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-auto flex flex-col items-center space-y-4">
+                <button id="undoButton" class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-undo text-lg"></i>
+                </button>
+                <button class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-cog text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Left Panel -->
+        <div class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
+            <div class="p-4 border-b border-gray-800">
+                <h2 class="font-semibold text-lg">Patient Case</h2>
+                <div class="text-sm text-gray-400">Case #DC-2023-4872</div>
+            </div>
+
+            <div class="p-4 border-b border-gray-800">
+                <div class="flex items-center space-x-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-dental-primary flex items-center justify-center text-white">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <div class="font-medium">John Smith</div>
+                        <div class="text-xs text-gray-400">Male, 42 years</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs mt-3">
+                    <div class="bg-gray-800 rounded p-2">
+                        <div class="text-gray-400">Last Visit</div>
+                        <div>2023-06-15</div>
+                    </div>
+                    <div class="bg-gray-800 rounded p-2">
+                        <div class="text-gray-400">Next Visit</div>
+                        <div>2023-07-20</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-b border-gray-800">
+                <h3 class="font-medium mb-2 flex items-center justify-between">
+                    <span>Treatment Plan</span>
+                    <button class="text-xs text-dental-primary hover:text-dental-secondary">Edit</button>
+                </h3>
+
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded">
+                        <div class="w-6 h-6 rounded-full bg-dental-primary flex items-center justify-center text-white text-xs">
+                            14
+                        </div>
+                        <div class="text-sm">Crown - Zirconia</div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded">
+                        <div class="w-6 h-6 rounded-full bg-dental-primary flex items-center justify-center text-white text-xs">
+                            19
+                        </div>
+                        <div class="text-sm">Implant - Crown</div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded">
+                        <div class="w-6 h-6 rounded-full bg-dental-primary flex items-center justify-center text-white text-xs">
+                            30
+                        </div>
+                        <div class="text-sm">Onlay - Emax</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-b border-gray-800 flex-1">
+                <h3 class="font-medium mb-2">Scan Files</h3>
+
+                <div id="dropzone" class="dropzone rounded-lg p-4 mb-3 text-center cursor-pointer">
+                    <i class="fas fa-cloud-upload-alt text-2xl text-dental-primary mb-2"></i>
+                    <div class="text-sm">Drag & drop STL files here</div>
+                    <div class="text-xs text-gray-500 mt-1">or click to browse</div>
+                    <input type="file" id="fileInput" accept=".stl" class="hidden" multiple>
+                </div>
+
+                <div class="text-xs text-gray-400 mb-2">Uploaded Files:</div>
+                <div class="space-y-1 max-h-40 overflow-y-auto">
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                        <i class="fas fa-file text-dental-primary"></i>
+                        <span class="truncate flex-1">upper_jaw.stl</span>
+                        <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+                    </div>
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                        <i class="fas fa-file text-dental-primary"></i>
+                        <span class="truncate flex-1">lower_jaw.stl</span>
+                        <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+                    </div>
+                    <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                        <i class="fas fa-file text-dental-primary"></i>
+                        <span class="truncate flex-1">prep_14.stl</span>
+                        <i class="fas fa-eye text-dental-primary cursor-pointer"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <button class="w-full bg-dental-primary hover:bg-dental-secondary text-white py-2 px-4 rounded-lg flex items-center justify-center space-x-2">
+                    <i class="fas fa-paper-plane"></i>
+                    <span>Send to Production</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col bg-gray-900">
+            <!-- Top Bar -->
+            <div class="h-12 border-b border-gray-800 flex items-center px-4">
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm bg-gray-800 rounded-full px-3 py-1 flex items-center space-x-1">
+                        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span>Online</span>
+                    </div>
+
+                    <div class="text-sm text-gray-400">
+                        Tool: <span id="toolStatus" class="text-dental-primary">Pencil</span>
+                    </div>
+                </div>
+
+                <div class="ml-auto flex items-center space-x-3">
+                    <button class="text-gray-400 hover:text-dental-primary">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-dental-primary">
+                        <i class="fas fa-save"></i>
+                    </button>
+                    <button id="clearButton" class="text-gray-400 hover:text-red-500">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3D Viewport -->
+            <div class="flex-1 relative">
+                <div id="renderCanvas"></div>
+                <!-- SVG overlay for lasso drawing -->
+                <svg id="lassoSVG" class="absolute top-0 left-0 w-full h-full pointer-events-none" style="z-index: 1000;">
+                    <path id="lassoPath" class="lasso-line" d="" />
+                </svg>
+
+                <!-- Viewport Controls -->
+                <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 rounded-full px-2 py-1 flex space-x-2">
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-700">
+                        <i class="fas fa-rotate"></i>
+                    </button>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-700">
+                        <i class="fas fa-arrows-up-down-left-right"></i>
+                    </button>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-700">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-700">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button class="w-8 h-8 rounded-full flex items-center justify-center bg-dental-primary text-white">
+                        <i class="fas fa-cube"></i>
+                    </button>
+                </div>
+
+                <!-- Viewport Options -->
+                <div class="absolute top-4 right-4 bg-gray-800 rounded-lg p-2">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="px-3 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600">Wireframe</button>
+                        <button class="px-3 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600">Solid</button>
+                        <button class="px-3 py-1 rounded text-xs bg-dental-primary text-white">Shaded</button>
+                        <button class="px-3 py-1 rounded text-xs bg-gray-700 hover:bg-gray-600">X-ray</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+            <div class="p-4 border-b border-gray-800">
+                <div class="flex space-x-2">
+                    <button class="tab-button active px-3 py-1 rounded text-sm bg-dental-primary text-white">Design</button>
+                    <button class="tab-button px-3 py-1 rounded text-sm bg-gray-800 hover:bg-gray-700">Materials</button>
+                    <button class="tab-button px-3 py-1 rounded text-sm bg-gray-800 hover:bg-gray-700">Layers</button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto">
+                <!-- Design Tab -->
+                <div class="tab-content active p-4 space-y-6">
+                    <div>
+                        <h3 class="font-medium mb-3 flex items-center justify-between">
+                            <span>Tooth #14</span>
+                            <span class="text-xs bg-dental-primary text-white px-2 py-1 rounded-full">Crown</span>
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Restoration Type</label>
+                                <select class="w-full property-input rounded px-3 py-2 text-sm">
+                                    <option>Crown</option>
+                                    <option>Bridge</option>
+                                    <option>Veneer</option>
+                                    <option>Inlay</option>
+                                    <option>Onlay</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Margin Line</label>
+                                <div class="flex space-x-2">
+                                    <div class="color-option w-6 h-6 rounded-full bg-red-500 border-2 border-transparent cursor-pointer"></div>
+                                    <div class="color-option w-6 h-6 rounded-full bg-orange-500 border-2 border-transparent cursor-pointer"></div>
+                                    <div class="color-option w-6 h-6 rounded-full bg-yellow-500 border-2 border-transparent cursor-pointer"></div>
+                                    <div class="color-option w-6 h-6 rounded-full bg-green-500 border-2 border-transparent cursor-pointer"></div>
+                                    <div class="color-option w-6 h-6 rounded-full bg-blue-500 border-2 border-transparent cursor-pointer selected"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-medium mb-3">Dimensions</h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Occlusal Thickness (mm)</label>
+                                <div class="flex items-center space-x-3">
+                                    <input type="range" min="0.5" max="2.0" step="0.1" value="1.2" class="w-full property-input">
+                                    <span class="text-xs w-8 text-center">1.2</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Marginal Width (mm)</label>
+                                <div class="flex items-center space-x-3">
+                                    <input type="range" min="0.3" max="1.5" step="0.1" value="0.8" class="w-full property-input">
+                                    <span class="text-xs w-8 text-center">0.8</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Contact Points</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button class="py-1 rounded text-xs bg-gray-800 hover:bg-gray-700">Mesial</button>
+                                    <button class="py-1 rounded text-xs bg-dental-primary text-white">Distal</button>
+                                    <button class="py-1 rounded text-xs bg-gray-800 hover:bg-gray-700">Both</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-medium mb-3">Material</h3>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-white mx-auto mb-1"></div>
+                                <div class="text-xs">Zirconia</div>
+                            </div>
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-yellow-100 mx-auto mb-1"></div>
+                                <div class="text-xs">Emax</div>
+                            </div>
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-amber-200 mx-auto mb-1"></div>
+                                <div class="text-xs">PFM</div>
+                            </div>
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-yellow-300 mx-auto mb-1"></div>
+                                <div class="text-xs">Gold</div>
+                            </div>
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-blue-50 mx-auto mb-1"></div>
+                                <div class="text-xs">Composite</div>
+                            </div>
+                            <div class="material-option p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+                                <div class="w-8 h-8 rounded-full bg-gray-200 mx-auto mb-1 flex items-center justify-center">
+                                    <i class="fas fa-plus text-xs"></i>
+                                </div>
+                                <div class="text-xs">Custom</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="block text-xs text-gray-400 mb-1">Material Thickness (mm)</label>
+                            <div class="flex items-center space-x-3">
+                                <input type="range" min="0.3" max="2.0" step="0.1" value="1.0" class="w-full property-input">
+                                <span class="text-xs w-8 text-center">1.0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Materials Tab -->
+                <div class="tab-content p-4">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-box-open text-2xl mb-2"></i>
+                        <div>Material library</div>
+                    </div>
+                </div>
+
+                <!-- Layers Tab -->
+                <div class="tab-content p-4">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-layer-group text-2xl mb-2"></i>
+                        <div>Layer management</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-gray-800">
+                <button class="w-full bg-dental-primary hover:bg-dental-secondary text-white py-2 px-4 rounded-lg">
+                    Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer, controls;
+        let loadedModels = [];
+        let activeTool = 'pencil';
+        let isDrawing = false;
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let undoStack = [];
+        let maxUndoSteps = 20;
+        let lassoPoints = [];
+        let currentLassoPath = '';
+        
+        // Tool settings
+        let toolSettings = {
+            strength: 1.0,
+            showToolInfo: true
+        };
+
+        // Initialize Three.js scene
+        function init3DViewer() {
+            console.log('🎯 Initializing 3D viewer...');
+            
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0c0a09);
+            scene.add(new THREE.AmbientLight(0x404040, 0.4));
+
+            // Create camera
+            const container = document.getElementById('renderCanvas');
+            camera = new THREE.PerspectiveCamera(75, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+            camera.position.set(0, 0, 50);
+
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Add orbit controls with custom mouse button configuration
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.mouseButtons = {
+                LEFT: null, // Disable left-click for orbit
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.ROTATE
+            };
+            controls.touches = {
+                ONE: THREE.TOUCH.ROTATE,
+                TWO: THREE.TOUCH.DOLLY_PAN
+            };
+
+            // Add lights
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 10);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            scene.add(hemisphereLight);
+
+            // Add grid helper
+            const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+            gridHelper.position.y = -10;
+            scene.add(gridHelper);
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Setup mouse events
+            setupMouseEvents();
+
+            // Start animation loop
+            animate();
+            
+            console.log('✅ 3D viewer initialized');
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('renderCanvas');
+            camera.aspect = container.offsetWidth / container.offsetHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.offsetWidth, container.offsetHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Tool management
+        function selectTool(toolName) {
+            activeTool = toolName;
+            
+            // Update UI
+            document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-tool="${toolName}"]`).classList.add('active');
+            
+            // Update tool status
+            const toolNames = {
+                'pencil': 'Pencil (Navigation)',
+                'ruler': 'Ruler (Measurement)',
+                'cut': 'Cut (Left-click+drag lasso to cut area)',
+                'addMaterial': 'Add Material (Left-click+drag to add)',
+                'removeMaterial': 'Remove Material (Left-click+drag to remove)',
+                'smooth': 'Smooth (Left-click+drag to smooth)',
+                'layers': 'Layers'
+            };
+            
+            document.getElementById('toolStatus').textContent = toolNames[toolName] || toolName;
+            
+            // Configure controls based on tool
+            if (['cut', 'addMaterial', 'removeMaterial', 'smooth'].includes(toolName)) {
+                // Tool mode - left click is reserved for tool operations
+                controls.mouseButtons.LEFT = null;
+                controls.enabled = true; // Keep orbit controls enabled for right-click
+            } else {
+                // Navigation mode - left click can rotate
+                controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+                controls.enabled = true;
+            }
+            
+            console.log('🔧 Tool changed to:', toolName);
+        }
+
+        // Mouse event handling
+        function setupMouseEvents() {
+            const canvas = renderer.domElement;
+            
+            canvas.addEventListener('mousedown', onMouseDown, false);
+            canvas.addEventListener('mousemove', onMouseMove, false);
+            canvas.addEventListener('mouseup', onMouseUp, false);
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click menu
+        }
+
+        function onMouseDown(event) {
+            if (event.button !== 0) return; // Only left click for tools
+            
+            if (['cut', 'addMaterial', 'removeMaterial', 'smooth'].includes(activeTool)) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                // Get mouse coordinates
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                // Check if we're clicking on an STL model
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(loadedModels);
+                
+                if (intersects.length > 0) {
+                    isDrawing = true;
+                    
+                    if (activeTool === 'cut') {
+                        // Start lasso drawing
+                        startLasso(event.clientX - rect.left, event.clientY - rect.top);
+                    } else {
+                        // Save undo state for material tools
+                        saveUndoState();
+                    }
+                }
+            }
+        }
+
+        function onMouseMove(event) {
+            if (!isDrawing) return;
+            
+            event.preventDefault();
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            const screenX = event.clientX - rect.left;
+            const screenY = event.clientY - rect.top;
+            
+            mouse.x = (screenX / rect.width) * 2 - 1;
+            mouse.y = -(screenY / rect.height) * 2 + 1;
+            
+            if (activeTool === 'cut') {
+                // Continue lasso drawing
+                updateLasso(screenX, screenY);
+            } else {
+                // Apply material tools
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(loadedModels);
+                
+                if (intersects.length > 0) {
+                    applyMaterialTool(intersects[0]);
+                }
+            }
+        }
+
+        function onMouseUp(event) {
+            if (event.button !== 0) return;
+            
+            if (isDrawing) {
+                isDrawing = false;
+                
+                if (activeTool === 'cut') {
+                    // Complete lasso and perform cut
+                    completeLasso();
+                }
+            }
+        }
+
+        // Lasso drawing functions
+        function startLasso(x, y) {
+            lassoPoints = [{x, y}];
+            currentLassoPath = `M ${x} ${y}`;
+            document.getElementById('lassoPath').setAttribute('d', currentLassoPath);
+            console.log('🎯 Started lasso drawing');
+        }
+
+        function updateLasso(x, y) {
+            lassoPoints.push({x, y});
+            currentLassoPath += ` L ${x} ${y}`;
+            document.getElementById('lassoPath').setAttribute('d', currentLassoPath);
+        }
+
+        function completeLasso() {
+            if (lassoPoints.length < 3) {
+                clearLasso();
+                return;
+            }
+            
+            // Close the lasso path
+            currentLassoPath += ' Z';
+            document.getElementById('lassoPath').setAttribute('d', currentLassoPath);
+            
+            console.log('✂️ Completing cut operation with', lassoPoints.length, 'points');
+            
+            // Save undo state before cutting
+            saveUndoState();
+            
+            // Perform cutting operation
+            performCut();
+            
+            // Clear lasso after a short delay
+            setTimeout(clearLasso, 500);
+        }
+
+        function clearLasso() {
+            lassoPoints = [];
+            currentLassoPath = '';
+            document.getElementById('lassoPath').setAttribute('d', '');
+        }
+
+        // Cut operation
+        function performCut() {
+            if (loadedModels.length === 0 || lassoPoints.length < 3) return;
+            
+            loadedModels.forEach(model => {
+                const geometry = model.geometry.clone();
+                const positions = geometry.attributes.position.array;
+                const faces = [];
+                
+                // Convert vertices to screen coordinates and check if they're inside the lasso
+                for (let i = 0; i < positions.length; i += 9) { // Each face has 3 vertices * 3 coordinates
+                    const v1 = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
+                    const v2 = new THREE.Vector3(positions[i + 3], positions[i + 4], positions[i + 5]);
+                    const v3 = new THREE.Vector3(positions[i + 6], positions[i + 7], positions[i + 8]);
+                    
+                    // Transform to world coordinates
+                    v1.applyMatrix4(model.matrixWorld);
+                    v2.applyMatrix4(model.matrixWorld);
+                    v3.applyMatrix4(model.matrixWorld);
+                    
+                    // Project to screen coordinates
+                    const s1 = worldToScreen(v1);
+                    const s2 = worldToScreen(v2);
+                    const s3 = worldToScreen(v3);
+                    
+                    // Check if any vertex of the face is inside the lasso
+                    const inside1 = isPointInPolygon(s1, lassoPoints);
+                    const inside2 = isPointInPolygon(s2, lassoPoints);
+                    const inside3 = isPointInPolygon(s3, lassoPoints);
+                    
+                    // If any vertex is inside the lasso, mark face for removal
+                    if (inside1 || inside2 || inside3) {
+                        // Skip this face (don't add to faces array)
+                        continue;
+                    } else {
+                        // Keep this face
+                        faces.push(
+                            positions[i], positions[i + 1], positions[i + 2],
+                            positions[i + 3], positions[i + 4], positions[i + 5],
+                            positions[i + 6], positions[i + 7], positions[i + 8]
+                        );
+                    }
+                }
+                
+                // Create new geometry with remaining faces
+                if (faces.length > 0) {
+                    const newGeometry = new THREE.BufferGeometry();
+                    newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(faces, 3));
+                    newGeometry.computeVertexNormals();
+                    
+                    // Update the model's geometry
+                    model.geometry.dispose(); // Clean up old geometry
+                    model.geometry = newGeometry;
+                    
+                    console.log(`✂️ Cut completed. Faces remaining: ${faces.length / 9}`);
+                } else {
+                    console.log('⚠️ Cut would remove entire model, operation cancelled');
+                }
+            });
+        }
+
+        // Utility functions
+        function worldToScreen(worldPos) {
+            const vector = worldPos.clone();
+            vector.project(camera);
+            
+            const rect = renderer.domElement.getBoundingClientRect();
+            return {
+                x: (vector.x + 1) * rect.width / 2,
+                y: (-vector.y + 1) * rect.height / 2
+            };
+        }
+
+        function isPointInPolygon(point, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                if (((polygon[i].y > point.y) !== (polygon[j].y > point.y)) &&
+                    (point.x < (polygon[j].x - polygon[i].x) * (point.y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+
+        // Material tools
+        function applyMaterialTool(intersection) {
+            const point = intersection.point;
+            const model = intersection.object;
+            const geometry = model.geometry;
+            const positions = geometry.attributes.position.array;
+            
+            const radius = 5.0; // Fixed radius for now
+            
+            // Apply tool effect to nearby vertices
+            for (let i = 0; i < positions.length; i += 3) {
+                const vertex = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
+                const worldVertex = vertex.clone().applyMatrix4(model.matrixWorld);
+                
+                const distance = worldVertex.distanceTo(point);
+                
+                if (distance <= radius) {
+                    const falloff = Math.max(0, 1 - (distance / radius));
+                    let displacement = 0;
+                    
+                    switch (activeTool) {
+                        case 'addMaterial':
+                            displacement = toolSettings.strength * falloff * 0.3;
+                            break;
+                        case 'removeMaterial':
+                            displacement = -toolSettings.strength * falloff * 0.3;
+                            break;
+                        case 'smooth':
+                            // Simple smoothing - average with neighbors
+                            displacement = toolSettings.strength * falloff * 0.1;
+                            break;
+                    }
+                    
+                    if (displacement !== 0) {
+                        // Get face normal for proper displacement direction
+                        const normal = intersection.face.normal.clone();
+                        positions[i] += normal.x * displacement;
+                        positions[i + 1] += normal.y * displacement;
+                        positions[i + 2] += normal.z * displacement;
+                    }
+                }
+            }
+            
+            geometry.attributes.position.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        // STL Loading
+        function loadSTL(file) {
+            const loader = new THREE.STLLoader();
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                try {
+                    const geometry = loader.parse(event.target.result);
+                    
+                    // Center geometry
+                    geometry.computeBoundingBox();
+                    const center = new THREE.Vector3();
+                    geometry.boundingBox.getCenter(center);
+                    geometry.translate(-center.x, -center.y, -center.z);
+                    
+                    const material = new THREE.MeshPhongMaterial({
+                        color: 0xf97316,
+                        specular: 0x222222,
+                        shininess: 50,
+                        side: THREE.DoubleSide
+                    });
+
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    
+                    scene.add(mesh);
+                    loadedModels.push(mesh);
+
+                    // Update camera to fit model
+                    fitCameraToObject(camera, controls, mesh, 1.5);
+                    
+                    // Add to file list
+                    addToFileList(file.name);
+                    
+                    console.log('✅ STL loaded:', file.name);
+                } catch (error) {
+                    console.error('❌ Error loading STL:', error);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Fit camera to object
+        function fitCameraToObject(camera, controls, object, offset) {
+            const boundingBox = new THREE.Box3();
+            boundingBox.setFromObject(object);
+
+            const center = new THREE.Vector3();
+            boundingBox.getCenter(center);
+
+            const size = boundingBox.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / Math.sin(fov / 2)) * offset;
+
+            camera.position.set(0, 0, cameraZ);
+            controls.target.copy(center);
+            controls.update();
+        }
+
+        function addToFileList(filename) {
+            const fileList = document.querySelector('.space-y-1.max-h-40.overflow-y-auto');
+            const fileElement = document.createElement('div');
+            fileElement.className = 'flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm';
+            fileElement.innerHTML = `
+                <i class="fas fa-file text-dental-primary"></i>
+                <span class="truncate flex-1">${filename}</span>
+                <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+            `;
+            fileList.appendChild(fileElement);
+        }
+
+        // Undo system
+        function saveUndoState() {
+            if (loadedModels.length === 0) return;
+            
+            const undoState = loadedModels.map(model => ({
+                positions: new Float32Array(model.geometry.attributes.position.array),
+                geometry: model.geometry.clone()
+            }));
+            
+            undoStack.push(undoState);
+            
+            if (undoStack.length > maxUndoSteps) {
+                undoStack.shift();
+            }
+            
+            updateUndoButton();
+        }
+
+        function performUndo() {
+            if (undoStack.length === 0) return;
+            
+            const undoState = undoStack.pop();
+            
+            loadedModels.forEach((model, index) => {
+                if (undoState[index]) {
+                    model.geometry.dispose();
+                    model.geometry = undoState[index].geometry.clone();
+                }
+            });
+            
+            updateUndoButton();
+            console.log('↶ Undo performed');
+        }
+
+        function updateUndoButton() {
+            const undoButton = document.getElementById('undoButton');
+            if (undoButton) {
+                undoButton.disabled = undoStack.length === 0;
+                undoButton.style.opacity = undoStack.length === 0 ? '0.5' : '1';
+            }
+        }
+
+        function clearAll() {
+            loadedModels.forEach(model => {
+                scene.remove(model);
+                model.geometry.dispose();
+                model.material.dispose();
+            });
+            loadedModels = [];
+            undoStack = [];
+            updateUndoButton();
+            
+            document.querySelector('.space-y-1.max-h-40.overflow-y-auto').innerHTML = `
+                <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                    <i class="fas fa-file text-dental-primary"></i>
+                    <span class="truncate flex-1">upper_jaw.stl</span>
+                    <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+                </div>
+                <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                    <i class="fas fa-file text-dental-primary"></i>
+                    <span class="truncate flex-1">lower_jaw.stl</span>
+                    <i class="fas fa-eye text-gray-400 hover:text-dental-primary cursor-pointer"></i>
+                </div>
+                <div class="flex items-center space-x-2 p-2 bg-gray-800 rounded text-sm">
+                    <i class="fas fa-file text-dental-primary"></i>
+                    <span class="truncate flex-1">prep_14.stl</span>
+                    <i class="fas fa-eye text-dental-primary cursor-pointer"></i>
+                </div>
+            `;
+            console.log('🗑️ All cleared');
+        }
+
+        // Initialize everything when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 DOM loaded, initializing...');
+            
+            init3DViewer();
+            
+            // Tool button handlers
+            document.querySelectorAll('.tool-button[data-tool]').forEach(button => {
+                button.addEventListener('click', function() {
+                    selectTool(this.getAttribute('data-tool'));
+                });
+            });
+            
+            // File upload
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            
+            // Drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => dropzone.classList.add('active'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => dropzone.classList.remove('active'), false);
+            });
+
+            dropzone.addEventListener('drop', handleDrop, false);
+            fileInput.addEventListener('change', handleFiles, false);
+            dropzone.addEventListener('click', () => fileInput.click());
+
+            function handleDrop(e) {
+                const files = e.dataTransfer.files;
+                handleFiles({ target: { files } });
+            }
+
+            function handleFiles(e) {
+                const files = e.target.files;
+                Array.from(files).forEach(file => {
+                    if (file.name.toLowerCase().endsWith('.stl')) {
+                        loadSTL(file);
+                    }
+                });
+            }
+            
+            // Button handlers
+            document.getElementById('undoButton').addEventListener('click', performUndo);
+            document.getElementById('clearButton').addEventListener('click', clearAll);
+            
+            // Tab switching (keeping existing functionality)
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabName = this.textContent.trim();
+
+                    // Update active tab button
+                    tabButtons.forEach(btn => btn.classList.remove('active', 'bg-dental-primary', 'text-white'));
+                    this.classList.add('active', 'bg-dental-primary', 'text-white');
+
+                    // Update tab content
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+
+                    if (tabName === 'Design') {
+                        document.querySelector('.tab-content:nth-child(1)').classList.add('active');
+                    } else if (tabName === 'Materials') {
+                        document.querySelector('.tab-content:nth-child(2)').classList.add('active');
+                    } else if (tabName === 'Layers') {
+                        document.querySelector('.tab-content:nth-child(3)').classList.add('active');
+                    }
+                });
+            });
+
+            // Color options (keeping existing functionality)
+            const colorOptions = document.querySelectorAll('.color-option');
+            colorOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    colorOptions.forEach(opt => opt.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+            });
+
+            // Material options (keeping existing functionality)
+            const materialOptions = document.querySelectorAll('.material-option');
+            materialOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    materialOptions.forEach(opt => opt.classList.remove('bg-dental-primary', 'text-white'));
+                    this.classList.add('bg-dental-primary', 'text-white');
+                });
+            });
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'z') {
+                    e.preventDefault();
+                    performUndo();
+                }
+                
+                if (e.key >= '1' && e.key <= '7') {
+                    const tools = ['pencil', 'ruler', 'cut', 'addMaterial', 'removeMaterial', 'smooth', 'layers'];
+                    const toolIndex = parseInt(e.key) - 1;
+                    if (toolIndex < tools.length) {
+                        selectTool(tools[toolIndex]);
+                        e.preventDefault();
+                    }
+                }
+            });
+            
+            console.log('🎉 DentalCAD Pro loaded successfully!');
+        });
+    </script>
+</body>
 </html>
+
