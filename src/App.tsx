@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { PatientPanel } from './components/PatientPanel';
 import { MainViewport } from './components/MainViewport';
-import { DesignPanel } from './components/DesignPanel';
+import { ScanCleanupPanel } from './components/ScanCleanupPanel';
 import { Tool, Patient, TreatmentPlan, STLFile, DesignParameters } from './types/dental';
+import { useScanCleanup } from './hooks/useScanCleanup';
+import { use3DViewer } from './hooks/use3DViewer';
 
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>('design');
@@ -19,6 +21,19 @@ function App() {
     contactPoints: 'Distal',
     materialThickness: 1.0,
   });
+
+  const {
+    cleanupState,
+    startMarginDrawing,
+    completeMarginLine,
+    applyAutoDetectedMargin,
+    deleteMarginLine,
+    clearAllMarginLines,
+    exportFiles,
+    setCurrentStage,
+  } = useScanCleanup();
+
+  const { loadedModels } = use3DViewer();
 
   const patient: Patient = {
     id: '1',
@@ -62,6 +77,14 @@ function App() {
     console.log('Loading file:', file.name);
   };
 
+  const handleExportFiles = () => {
+    if (loadedModels.length > 0) {
+      const primaryModel = loadedModels[0];
+      const filename = stlFiles[0]?.name.replace('.stl', '') || 'model';
+      exportFiles(primaryModel, filename);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-900 text-gray-200 overflow-hidden">
       <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
@@ -80,9 +103,16 @@ function App() {
         onToolChange={setActiveTool}
       />
       
-      <DesignPanel
-        designParams={designParams}
-        onDesignParamsChange={setDesignParams}
+      <ScanCleanupPanel
+        cleanupState={cleanupState}
+        onStartMarginDrawing={startMarginDrawing}
+        onCompleteMarginLine={completeMarginLine}
+        onApplyAutoDetectedMargin={applyAutoDetectedMargin}
+        onDeleteMarginLine={deleteMarginLine}
+        onClearAllMarginLines={clearAllMarginLines}
+        onExportFiles={handleExportFiles}
+        onStageChange={setCurrentStage}
+        hasModels={stlFiles.length > 0}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { STLLoader } from 'three-stdlib';
-import { STLFile, ViewMode, Tool } from '../types/dental';
+import { STLFile, ViewMode, Tool, MarginPoint } from '../types/dental';
+import { useScanCleanup } from './useScanCleanup';
 
 export const use3DViewer = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -17,6 +18,14 @@ export const use3DViewer = () => {
   const [activeTool, setActiveTool] = useState<Tool>('design');
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPoints, setDrawingPoints] = useState<THREE.Vector3[]>([]);
+
+  const {
+    cleanupState,
+    detectPrepAreas,
+    addMarginPoint,
+    marginLinesRef,
+    setPrepDetection,
+  } = useScanCleanup();
 
   // Initialize 3D scene
   useEffect(() => {
@@ -71,6 +80,9 @@ export const use3DViewer = () => {
     gridHelper.position.y = -20;
     scene.add(gridHelper);
 
+    // Add margin lines group to scene
+    scene.add(marginLinesRef.current);
+
     // Orbit controls implementation
     const controls = {
       isDragging: false,
@@ -90,6 +102,8 @@ export const use3DViewer = () => {
       if (event.button === 0) { // Left click
         if (activeTool === 'design') {
           controls.isRotating = true;
+        } else if (activeTool === 'tooth' && cleanupState.isDrawingMargin) {
+          handleMarginDrawing(event);
         } else if (activeTool === 'measure') {
           handleMeasureTool(event);
         } else if (activeTool === 'cut') {
@@ -101,6 +115,27 @@ export const use3DViewer = () => {
       
       controls.isDragging = true;
       controls.previousMousePosition = { x: event.clientX, y: event.clientY };
+    };
+
+    const handleMarginDrawing = (event: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+      const intersects = raycasterRef.current.intersectObjects(loadedModels);
+
+      if (intersects.length > 0) {
+        const intersection = intersects[0];
+        const point = intersection.point;
+        const normal = intersection.face?.normal || new THREE.Vector3(0, 1, 0);
+        
+        // Transform normal to world space
+        const worldNormal = normal.clone().transformDirection(intersection.object.matrixWorld);
+        
+        addMarginPoint(point, worldNormal);
+        addMarginPointVisualization(point, worldNormal);
+      }
     };
 
     const handleMouseMove = (event: MouseEvent) => {
@@ -220,7 +255,75 @@ export const use3DViewer = () => {
       }
       renderer.dispose();
     };
-  }, [activeTool, isDrawing]);
+  }, [activeTool, isDrawing, cleanupState.isDrawingMargin, addMarginPoint]);
+
+  // Update margin line visualization
+  useEffect(() => {
+    // Clear existing margin visualizations
+    marginLinesRef.current.clear();
+
+    cleanupState.marginLines.forEach((line) => {
+      if (line.points.length > 0) {
+        // Create points geometry
+        const pointsGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(line.points.length * 3);
+        
+        line.points.forEach((point, index) => {
+          positions[index * 3] = point.position.x;
+          positions[index * 3 + 1] = point.position.y;
+          positions[index * 3 + 2] = point.position.z;
+        });
+        
+        pointsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        // Create points material
+        const pointsMaterial = new THREE.PointsMaterial({
+          color: line.color,
+          size: 0.5,
+          sizeAttenuation: true,
+        });
+        
+        const points = new THREE.Points(pointsGeometry, pointsMaterial);
+        marginLinesRef.current.add(points);
+        
+        // Create line connecting points if there are enough points
+        if (line.points.length > 1) {
+          const lineGeometry = new THREE.BufferGeometry();
+          lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          
+          const lineMaterial = new THREE.LineBasicMaterial({
+            color: line.color,
+            linewidth: line.thickness,
+          });
+          
+          const lineObject = new THREE.Line(lineGeometry, lineMaterial);
+          marginLinesRef.current.add(lineObject);
+        }
+      }
+    });
+  }, [cleanupState.marginLines]);
+
+  const addMarginPointVisualization = (point: THREE.Vector3, normal: THREE.Vector3) => {
+    if (!sceneRef.current) return;
+
+    // Add a small sphere at the margin point
+    const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff6b6b });
+    const sphere = new THREE.Mesh(geometry, material);
+    sphere.position.copy(point);
+    
+    // Add to margin lines group for easy management
+    marginLinesRef.current.add(sphere);
+
+    // Add normal vector visualization
+    const normalGeometry = new THREE.BufferGeometry().setFromPoints([
+      point,
+      point.clone().add(normal.clone().multiplyScalar(2))
+    ]);
+    const normalMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const normalLine = new THREE.Line(normalGeometry, normalMaterial);
+    marginLinesRef.current.add(normalLine);
+  };
 
   const addMeasurementPoint = (point: THREE.Vector3) => {
     if (!sceneRef.current) return;
@@ -273,6 +376,10 @@ export const use3DViewer = () => {
 
       // Fit camera to object
       fitCameraToObject(mesh);
+
+      // Detect prep areas after loading
+      const prepDetection = detectPrepAreas(mesh);
+      setPrepDetection(prepDetection);
 
       return mesh;
     } catch (error) {
@@ -409,5 +516,6 @@ export const use3DViewer = () => {
     viewMode,
     loadedModels,
     activeTool,
+    cleanupState,
   };
 };

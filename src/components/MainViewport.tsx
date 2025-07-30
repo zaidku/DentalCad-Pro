@@ -31,7 +31,8 @@ export const MainViewport: React.FC<MainViewportProps> = ({
     updateViewMode, 
     setTool, 
     resetCamera,
-    loadedModels 
+    loadedModels,
+    cleanupState
   } = use3DViewer();
 
   React.useEffect(() => {
@@ -68,9 +69,11 @@ export const MainViewport: React.FC<MainViewportProps> = ({
           <div className="text-sm text-gray-400">
             Models loaded: <span className="text-orange-500">{loadedModels.length}</span>
           </div>
-          <div className="text-sm text-gray-400">
-            Designing: <span className="text-orange-500">Tooth #14 - Crown</span>
-          </div>
+          {cleanupState && (
+            <div className="text-sm text-gray-400">
+              Stage: <span className="text-orange-500 capitalize">{cleanupState.currentStage.replace('-', ' ')}</span>
+            </div>
+          )}
         </div>
 
         <div className="ml-auto flex items-center space-x-3">
@@ -144,11 +147,19 @@ export const MainViewport: React.FC<MainViewportProps> = ({
         <div className="absolute top-4 left-4 bg-gray-800/90 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
           <div className="text-xs text-gray-400 mb-1">Active Tool</div>
           <div className="text-sm text-orange-500 font-medium capitalize">{activeTool}</div>
+          {activeTool === 'tooth' && cleanupState?.isDrawingMargin && (
+            <div className="text-xs text-gray-500 mt-1">Click on model to add margin points</div>
+          )}
           {activeTool === 'measure' && (
             <div className="text-xs text-gray-500 mt-1">Click on model to measure</div>
           )}
           {activeTool === 'cut' && (
             <div className="text-xs text-gray-500 mt-1">Click and drag to cut</div>
+          )}
+          {cleanupState && cleanupState.marginLines.length > 0 && (
+            <div className="text-xs text-green-400 mt-1">
+              Margin lines: {cleanupState.marginLines.length}
+            </div>
           )}
         </div>
       </div>
