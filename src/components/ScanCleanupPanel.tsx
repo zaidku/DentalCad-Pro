@@ -193,6 +193,15 @@ export const ScanCleanupPanel: React.FC<ScanCleanupPanelProps> = ({
               <h3 className="font-medium text-white">Draw Margin Line</h3>
             </div>
 
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 mb-4">
+              <div className="text-sm text-blue-200 mb-2">How to draw margins:</div>
+              <div className="text-xs text-blue-300 space-y-1">
+                <div>1. Select the Tooth tool from the left sidebar</div>
+                <div>2. Choose a drawing mode below</div>
+                <div>3. Click directly on the 3D model to add points</div>
+                <div>4. Complete when finished drawing</div>
+              </div>
+            </div>
             {!isDrawingMargin ? (
               <div className="space-y-3">
                 <div className="text-sm text-gray-300 mb-4">
@@ -231,8 +240,11 @@ export const ScanCleanupPanel: React.FC<ScanCleanupPanelProps> = ({
                   <div className="text-sm text-gray-300">
                     Mode: <span className="text-orange-500 capitalize">{marginDrawingMode}</span>
                   </div>
-                  <div className="text-xs text-gray-400 mt-2">
-                    Click on the 3D model to add margin points
+                  <div className="text-xs text-orange-300 mt-2 font-medium">
+                    ✓ Tooth tool selected - Click on the 3D model to add margin points
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Red spheres = margin points, Green lines = normal vectors
                   </div>
                 </div>
 

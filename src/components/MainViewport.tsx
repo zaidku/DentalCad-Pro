@@ -148,7 +148,14 @@ export const MainViewport: React.FC<MainViewportProps> = ({
           <div className="text-xs text-gray-400 mb-1">Active Tool</div>
           <div className="text-sm text-orange-500 font-medium capitalize">{activeTool}</div>
           {activeTool === 'tooth' && cleanupState?.isDrawingMargin && (
-            <div className="text-xs text-gray-500 mt-1">Click on model to add margin points</div>
+            <div className="text-xs text-green-400 mt-1 font-medium">
+              ✓ Ready to draw - Click on model to add margin points
+            </div>
+          )}
+          {activeTool === 'tooth' && !cleanupState?.isDrawingMargin && (
+            <div className="text-xs text-yellow-400 mt-1">
+              Select drawing mode in Scan Cleanup panel
+            </div>
           )}
           {activeTool === 'measure' && (
             <div className="text-xs text-gray-500 mt-1">Click on model to measure</div>
