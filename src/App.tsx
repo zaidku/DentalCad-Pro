@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { PatientPanel } from './components/PatientPanel';
 import { MainViewport } from './components/MainViewport';
 import { DesignPanel } from './components/DesignPanel';
 import { Tool, Patient, TreatmentPlan, STLFile, DesignParameters } from './types/dental';
 
+// Import workflow manager
+declare global {
+  interface Window {
+    DentalWorkflowManager: any;
+  }
+}
+
 function App() {
   const [activeTool, setActiveTool] = useState<Tool>('design');
-  const [stlFiles, setStlFiles] = useState<STLFile[]>([
-    { id: '1', name: 'upper_jaw.stl', file: new File([], 'upper_jaw.stl'), isVisible: true, isActive: false },
-    { id: '2', name: 'lower_jaw.stl', file: new File([], 'lower_jaw.stl'), isVisible: true, isActive: false },
-    { id: '3', name: 'prep_14.stl', file: new File([], 'prep_14.stl'), isVisible: true, isActive: true },
-  ]);
+  const [stlFiles, setStlFiles] = useState<STLFile[]>([]);
 
   const [designParams, setDesignParams] = useState<DesignParameters>({
     occlusialThickness: 1.2,
@@ -19,6 +22,28 @@ function App() {
     contactPoints: 'Distal',
     materialThickness: 1.0,
   });
+
+  // Initialize workflow manager
+  useEffect(() => {
+    // Load the workflow manager script
+    const script = document.createElement('script');
+    script.src = '/src/dentalWorkflow.js';
+    script.onload = () => {
+      if (window.DentalWorkflowManager) {
+        new window.DentalWorkflowManager();
+        // Don't hide the default interface - it represents Stage 2 (Scan Clean)
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      // Cleanup if needed
+      const existingScript = document.querySelector('script[src="/src/dentalWorkflow.js"]');
+      if (existingScript) {
+        document.head.removeChild(existingScript);
+      }
+    };
+  }, []);
 
   const patient: Patient = {
     id: '1',
@@ -62,28 +87,37 @@ function App() {
     console.log('Loading file:', file.name);
   };
 
+  const handleToolChange = (tool: string) => {
+    setActiveTool(tool as Tool);
+  };
+
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-200 overflow-hidden">
-      <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
+    <div className="app h-screen bg-gray-900 text-white overflow-hidden">
+      {/* Workflow Progress Bar will be inserted at the top by the workflow manager */}
       
-      <PatientPanel
-        patient={patient}
-        treatmentPlan={treatmentPlan}
-        stlFiles={stlFiles}
-        onFileUpload={handleFileUpload}
-        onFileToggle={handleFileToggle}
-      />
-      
-      <MainViewport 
-        onFileLoad={handleFileLoad} 
-        activeTool={activeTool}
-        onToolChange={setActiveTool}
-      />
-      
-      <DesignPanel
-        designParams={designParams}
-        onDesignParamsChange={setDesignParams}
-      />
+      {/* Default interface - will be hidden when workflow is active */}
+      <div className="default-interface flex h-full">
+        <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
+        
+        <PatientPanel
+          patient={patient}
+          treatmentPlan={treatmentPlan}
+          stlFiles={stlFiles}
+          onFileUpload={handleFileUpload}
+          onFileToggle={handleFileToggle}
+        />
+        
+        <MainViewport 
+          onFileLoad={handleFileLoad} 
+          activeTool={activeTool}
+          onToolChange={handleToolChange}
+        />
+        
+        <DesignPanel
+          designParams={designParams}
+          onDesignParamsChange={setDesignParams}
+        />
+      </div>
     </div>
   );
 }

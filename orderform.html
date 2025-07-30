@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dental Laboratory Order Form - DentalCAD Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Data Management System -->
+    <script src="js/dataManager.js"></script>
+    <script src="js/workflowDataBridge.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dental: {
+                            primary: '#f97316',
+                            secondary: '#ea580c',
+                            dark: '#0c0a09',
+                            light: '#f5f5f4',
+                            accent: '#fdba74',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-effect {
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background-color: rgba(15, 23, 42, 0.8);
+        }
+
+        .form-input {
+            background-color: rgba(31, 41, 55, 0.6);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: #f97316;
+            box-shadow: 0 0 0 1px #f97316;
+            outline: none;
+        }
+
+        .form-select {
+            background-color: rgba(31, 41, 55, 0.6);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            transition: all 0.2s ease;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+
+        .form-select:focus {
+            border-color: #f97316;
+            box-shadow: 0 0 0 1px #f97316;
+            outline: none;
+        }
+
+        .tooth-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.5rem;
+            max-width: 400px;
+        }
+
+        .tooth-button {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            background-color: rgba(31, 41, 55, 0.8);
+            color: #9ca3af;
+            border: 1px solid rgba(55, 65, 81, 0.8);
+        }
+
+        .tooth-button:hover {
+            background-color: rgba(55, 65, 81, 0.8);
+            color: #d1d5db;
+        }
+
+        .tooth-button.selected {
+            background-color: #f97316;
+            color: white;
+            border-color: #f97316;
+        }
+
+        .shade-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.375rem;
+            border: 2px solid transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .shade-button:hover {
+            transform: scale(1.1);
+        }
+
+        .shade-button.selected {
+            border-color: #f97316;
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3);
+        }
+
+        .shade-button::after {
+            content: attr(data-shade);
+            position: absolute;
+            bottom: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.625rem;
+            color: #9ca3af;
+            white-space: nowrap;
+        }
+
+        .order-summary {
+            background-color: rgba(31, 41, 55, 0.4);
+            border: 1px solid rgba(55, 65, 81, 0.6);
+            border-radius: 0.5rem;
+        }
+
+        .material-card {
+            background-color: rgba(31, 41, 55, 0.6);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .material-card:hover {
+            background-color: rgba(55, 65, 81, 0.6);
+            border-color: rgba(75, 85, 99, 0.8);
+        }
+
+        .material-card.selected {
+            background-color: rgba(249, 115, 22, 0.1);
+            border-color: #f97316;
+        }
+
+        .required-field::after {
+            content: '*';
+            color: #ef4444;
+            margin-left: 0.25rem;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .workflow-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2rem;
+            height: 2px;
+            background-color: rgba(55, 65, 81, 0.8);
+        }
+
+        .workflow-step.active::after {
+            background-color: #f97316;
+        }
+
+        .step-circle {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border: 2px solid rgba(55, 65, 81, 0.8);
+            background-color: rgba(31, 41, 55, 0.8);
+            color: #9ca3af;
+        }
+
+        .workflow-step.active .step-circle {
+            border-color: #f97316;
+            background-color: #f97316;
+            color: white;
+        }
+
+        .workflow-step.completed .step-circle {
+            border-color: #10b981;
+            background-color: #10b981;
+            color: white;
+        }
+
+        /* STL File Upload Styles */
+        .dropzone {
+            border: 2px dashed rgba(249, 115, 22, 0.3);
+            transition: all 0.3s ease;
+            background-color: rgba(31, 41, 55, 0.3);
+        }
+
+        .dropzone.active {
+            border-color: #f97316;
+            background-color: rgba(249, 115, 22, 0.05);
+        }
+
+        .dropzone:hover {
+            border-color: rgba(249, 115, 22, 0.5);
+            background-color: rgba(249, 115, 22, 0.02);
+        }
+
+        .file-item {
+            background-color: rgba(31, 41, 55, 0.6);
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: between;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-item:hover {
+            background-color: rgba(31, 41, 55, 0.8);
+        }
+    </style>
+</head>
+<body class="h-full bg-gray-900 text-gray-200">
+    <div class="min-h-full">
+        <!-- Header -->
+        <header class="bg-gray-900 border-b border-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 rounded-md bg-dental-primary flex items-center justify-center text-white font-bold">
+                            DC
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-semibold text-white">DentalCAD Pro</h1>
+                            <p class="text-sm text-gray-400">Professional Dental Laboratory</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-sm bg-gray-800 rounded-full px-3 py-1 flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <span>Online</span>
+                        </div>
+                        <button class="text-gray-400 hover:text-dental-primary">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Workflow Progress -->
+        <div id="workflowProgressContainer"></div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Main Form -->
+                <div class="lg:col-span-2 space-y-8">
+                    <!-- Patient Information -->
+                    <div class="glass-effect rounded-lg p-6 border border-gray-800">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-user-injured text-dental-primary text-xl mr-3"></i>
+                            <h2 class="text-xl font-semibold text-white">Patient Information</h2>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2 required-field">Patient Name</label>
+                                <input type="text" id="patientName" class="form-input w-full rounded-lg px-4 py-3 text-white placeholder-gray-400" placeholder="Enter patient's full name" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Patient ID</label>
+                                <input type="text" id="patientId" class="form-input w-full rounded-lg px-4 py-3 text-white placeholder-gray-400" placeholder="Optional patient ID">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Doctor/Clinic</label>
+                                <input type="text" id="doctorName" class="form-input w-full rounded-lg px-4 py-3 text-white placeholder-gray-400" placeholder="Referring doctor or clinic">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Date Required</label>
+                                <input type="date" id="dateRequired" class="form-input w-full rounded-lg px-4 py-3 text-white">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tooth Selection -->
+                    <div class="glass-effect rounded-lg p-6 border border-gray-800">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-teeth text-dental-primary text-xl mr-3"></i>
+                            <h2 class="text-xl font-semibold text-white">Tooth Selection</h2>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <!-- Upper Jaw -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-300 mb-3">Upper Jaw (Maxilla)</h3>
+                                <div class="tooth-grid mx-auto">
+                                    <!-- Upper right quadrant (18-11) -->
+                                    <div class="tooth-button" data-tooth="18">18</div>
+                                    <div class="tooth-button" data-tooth="17">17</div>
+                                    <div class="tooth-button" data-tooth="16">16</div>
+                                    <div class="tooth-button" data-tooth="15">15</div>
+                                    <div class="tooth-button" data-tooth="14">14</div>
+                                    <div class="tooth-button" data-tooth="13">13</div>
+                                    <div class="tooth-button" data-tooth="12">12</div>
+                                    <div class="tooth-button" data-tooth="11">11</div>
+                                    <!-- Upper left quadrant (21-28) -->
+                                    <div class="tooth-button" data-tooth="21">21</div>
+                                    <div class="tooth-button" data-tooth="22">22</div>
+                                    <div class="tooth-button" data-tooth="23">23</div>
+                                    <div class="tooth-button" data-tooth="24">24</div>
+                                    <div class="tooth-button" data-tooth="25">25</div>
+                                    <div class="tooth-button" data-tooth="26">26</div>
+                                    <div class="tooth-button" data-tooth="27">27</div>
+                                    <div class="tooth-button" data-tooth="28">28</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Lower Jaw -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-300 mb-3">Lower Jaw (Mandible)</h3>
+                                <div class="tooth-grid mx-auto">
+                                    <!-- Lower right quadrant (48-41) -->
+                                    <div class="tooth-button" data-tooth="48">48</div>
+                                    <div class="tooth-button" data-tooth="47">47</div>
+                                    <div class="tooth-button" data-tooth="46">46</div>
+                                    <div class="tooth-button" data-tooth="45">45</div>
+                                    <div class="tooth-button" data-tooth="44">44</div>
+                                    <div class="tooth-button" data-tooth="43">43</div>
+                                    <div class="tooth-button" data-tooth="42">42</div>
+                                    <div class="tooth-button" data-tooth="41">41</div>
+                                    <!-- Lower left quadrant (31-38) -->
+                                    <div class="tooth-button" data-tooth="31">31</div>
+                                    <div class="tooth-button" data-tooth="32">32</div>
+                                    <div class="tooth-button" data-tooth="33">33</div>
+                                    <div class="tooth-button" data-tooth="34">34</div>
+                                    <div class="tooth-button" data-tooth="35">35</div>
+                                    <div class="tooth-button" data-tooth="36">36</div>
+                                    <div class="tooth-button" data-tooth="37">37</div>
+                                    <div class="tooth-button" data-tooth="38">38</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-gray-800 rounded-lg">
+                            <p class="text-sm text-gray-300">
+                                <i class="fas fa-info-circle text-dental-primary mr-2"></i>
+                                Selected teeth: <span id="selectedTeeth" class="text-dental-primary font-medium">None</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Shade Selection -->
+                    <div class="glass-effect rounded-lg p-6 border border-gray-800">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-palette text-dental-primary text-xl mr-3"></i>
+                            <h2 class="text-xl font-semibold text-white">Shade Selection</h2>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <!-- VITA Classical Shades -->
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-300 mb-4">VITA Classical Shades</h3>
+                                <div class="grid grid-cols-8 gap-3 mb-8">
+                                    <!-- A Shades (Reddish Brown) -->
+                                    <div class="shade-button" data-shade="A1" style="background-color: #f4e6d7;" data-category="A"></div>
+                                    <div class="shade-button" data-shade="A2" style="background-color: #f0dcc0;" data-category="A"></div>
+                                    <div class="shade-button" data-shade="A3" style="background-color: #e8ce9f;" data-category="A"></div>
+                                    <div class="shade-button" data-shade="A3.5" style="background-color: #e0c18a;" data-category="A"></div>
+                                    <div class="shade-button" data-shade="A4" style="background-color: #d8b474;" data-category="A"></div>
+                                    
+                                    <!-- B Shades (Reddish Yellow) -->
+                                    <div class="shade-button" data-shade="B1" style="background-color: #f5e8d0;" data-category="B"></div>
+                                    <div class="shade-button" data-shade="B2" style="background-color: #f0dbb5;" data-category="B"></div>
+                                    <div class="shade-button" data-shade="B3" style="background-color: #e7cd95;" data-category="B"></div>
+                                    
+                                    <!-- C Shades (Gray) -->
+                                    <div class="shade-button" data-shade="C1" style="background-color: #f0e8d8;" data-category="C"></div>
+                                    <div class="shade-button" data-shade="C2" style="background-color: #eaddc5;" data-category="C"></div>
+                                    <div class="shade-button" data-shade="C3" style="background-color: #e0d0b0;" data-category="C"></div>
+                                    <div class="shade-button" data-shade="C4" style="background-color: #d6c39b;" data-category="C"></div>
+                                    
+                                    <!-- D Shades (Reddish Gray) -->
+                                    <div class="shade-button" data-shade="D2" style="background-color: #ebe0c8;" data-category="D"></div>
+                                    <div class="shade-button" data-shade="D3" style="background-color: #e2d4b5;" data-category="D"></div>
+                                    <div class="shade-button" data-shade="D4" style="background-color: #d9c7a2;" data-category="D"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-4 bg-gray-800 rounded-lg">
+                                <p class="text-sm text-gray-300">
+                                    <i class="fas fa-info-circle text-dental-primary mr-2"></i>
+                                    Selected shade: <span id="selectedShade" class="text-dental-primary font-medium">None</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Material Selection -->
+                    <div class="glass-effect rounded-lg p-6 border border-gray-800">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-gem text-dental-primary text-xl mr-3"></i>
+                            <h2 class="text-xl font-semibold text-white">Material Selection</h2>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="material-card" data-material="zirconia">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-white mr-3"></div>
+                                    <h3 class="font-semibold text-white">Zirconia</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">High strength, biocompatible ceramic material</p>
+                                <div class="mt-2 text-xs text-dental-primary">Crowns, Bridges, Implants</div>
+                            </div>
+                            
+                            <div class="material-card" data-material="emax">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-yellow-100 mr-3"></div>
+                                    <h3 class="font-semibold text-white">Emax (Lithium Disilicate)</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">Excellent aesthetics with high translucency</p>
+                                <div class="mt-2 text-xs text-dental-primary">Veneers, Crowns, Inlays</div>
+                            </div>
+                            
+                            <div class="material-card" data-material="pfm">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-amber-200 mr-3"></div>
+                                    <h3 class="font-semibold text-white">PFM (Porcelain Fused to Metal)</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">Traditional strength with porcelain aesthetics</p>
+                                <div class="mt-2 text-xs text-dental-primary">Crowns, Bridges</div>
+                            </div>
+                            
+                            <div class="material-card" data-material="gold">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-yellow-300 mr-3"></div>
+                                    <h3 class="font-semibold text-white">Gold Alloy</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">Superior durability and biocompatibility</p>
+                                <div class="mt-2 text-xs text-dental-primary">Crowns, Inlays, Onlays</div>
+                            </div>
+                            
+                            <div class="material-card" data-material="composite">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-blue-50 mr-3"></div>
+                                    <h3 class="font-semibold text-white">Composite Resin</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">Conservative treatment option</p>
+                                <div class="mt-2 text-xs text-dental-primary">Inlays, Onlays, Veneers</div>
+                            </div>
+                            
+                            <div class="material-card" data-material="custom">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                                        <i class="fas fa-plus text-xs text-gray-600"></i>
+                                    </div>
+                                    <h3 class="font-semibold text-white">Custom Material</h3>
+                                </div>
+                                <p class="text-sm text-gray-400">Specify custom material requirements</p>
+                                <div class="mt-2 text-xs text-dental-primary">Contact for details</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-gray-800 rounded-lg">
+                            <p class="text-sm text-gray-300">
+                                <i class="fas fa-info-circle text-dental-primary mr-2"></i>
+                                Selected material: <span id="selectedMaterial" class="text-dental-primary font-medium">None</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Additional Instructions -->
+                    <div class="glass-effect rounded-lg p-6 border border-gray-800">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-clipboard-list text-dental-primary text-xl mr-3"></i>
+                            <h2 class="text-xl font-semibold text-white">Additional Instructions</h2>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Restoration Type</label>
+                                <select id="restorationType" class="form-select w-full rounded-lg px-4 py-3 text-white">
+                                    <option value="">Select restoration type</option>
+                                    <option value="crown">Crown</option>
+                                    <option value="bridge">Bridge</option>
+                                    <option value="veneer">Veneer</option>
+                                    <option value="inlay">Inlay</option>
+                                    <option value="onlay">Onlay</option>
+                                    <option value="implant">Implant Crown</option>
+                                    <option value="partial">Partial Denture</option>
+                                    <option value="complete">Complete Denture</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Special Instructions</label>
+                                <textarea id="specialInstructions" rows="4" class="form-input w-full rounded-lg px-4 py-3 text-white placeholder-gray-400" placeholder="Enter any special instructions, margin requirements, occlusion notes, or other relevant details..."></textarea>
+                            </div>
+
+                            <!-- STL File Upload Section -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    <i class="fas fa-upload mr-2"></i>Upload STL Files
+                                    <span class="text-red-400 ml-1">*</span>
+                                </label>
+                                <div id="stlDropzone" class="dropzone rounded-lg p-6 text-center cursor-pointer">
+                                    <i class="fas fa-cloud-upload-alt text-3xl text-dental-primary mb-3"></i>
+                                    <div class="text-lg font-medium text-gray-300 mb-2">Drag & Drop STL Files Here</div>
+                                    <div class="text-sm text-gray-400 mb-4">or click to browse</div>
+                                    <button type="button" class="bg-dental-primary hover:bg-dental-secondary text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                        <i class="fas fa-folder-open mr-2"></i>Browse Files
+                                    </button>
+                                    <input type="file" id="stlFileInput" accept=".stl" class="hidden" multiple>
+                                </div>
+                                
+                                <!-- Uploaded Files List -->
+                                <div id="uploadedFilesList" class="mt-4" style="display: none;">
+                                    <h4 class="text-sm font-medium text-gray-300 mb-2">Uploaded Files:</h4>
+                                    <div id="filesList"></div>
+                                </div>
+                                
+                                <div class="text-xs text-gray-400 mt-2">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Supported format: STL files only. Maximum 10 files, 50MB each.
+                                </div>
+                            </div>
+            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+                                    <select id="priority" class="form-select w-full rounded-lg px-4 py-3 text-white">
+                                        <option value="standard">Standard (7-10 days)</option>
+                                        <option value="rush">Rush (3-5 days)</option>
+                                        <option value="emergency">Emergency (24-48 hours)</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Contact Method</label>
+                                    <select id="contactMethod" class="form-select w-full rounded-lg px-4 py-3 text-white">
+                                        <option value="phone">Phone</option>
+                                        <option value="email">Email</option>
+                                        <option value="both">Phone & Email</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Summary Sidebar -->
+                <div class="lg:col-span-1">
+                    <div class="sticky top-8">
+                        <div class="order-summary p-6 rounded-lg mb-6">
+                            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                                <i class="fas fa-file-invoice text-dental-primary mr-2"></i>
+                                Order Summary
+                            </h3>
+                            
+                            <div class="space-y-4">
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Patient</div>
+                                    <div id="summaryPatient" class="text-white font-medium">Not specified</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Tooth Numbers</div>
+                                    <div id="summaryTeeth" class="text-white font-medium">None selected</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Shade</div>
+                                    <div id="summaryShade" class="text-white font-medium">Not selected</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Material</div>
+                                    <div id="summaryMaterial" class="text-white font-medium">Not selected</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Restoration Type</div>
+                                    <div id="summaryRestoration" class="text-white font-medium">Not specified</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">Priority</div>
+                                    <div id="summaryPriority" class="text-white font-medium">Standard</div>
+                                </div>
+                                
+                                <div class="border-b border-gray-700 pb-3">
+                                    <div class="text-sm text-gray-400">STL Files</div>
+                                    <div id="summaryFiles" class="text-white font-medium">No files uploaded</div>
+                                </div>
+                                
+                                <div class="pt-2">
+                                    <div class="text-sm text-gray-400">Order ID</div>
+                                    <div id="orderId" class="text-dental-primary font-mono text-sm">DL-2024-001</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="space-y-3">
+                            <button id="nextToScanCleaning" class="w-full bg-dental-primary hover:bg-dental-secondary text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                                <i class="fas fa-arrow-right mr-2"></i>
+                                Next: Scan Cleaning
+                            </button>
+                            
+                            <button id="saveAsDraft" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                                <i class="fas fa-save mr-2"></i>
+                                Save as Draft
+                            </button>
+                            
+                            <button id="clearForm" class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                                <i class="fas fa-refresh mr-2"></i>
+                                Clear Form
+                            </button>
+                        </div>
+                        
+                        <!-- Help Section -->
+                        <div class="mt-6 p-4 bg-gray-800 rounded-lg">
+                            <h4 class="text-sm font-semibold text-white mb-2 flex items-center">
+                                <i class="fas fa-question-circle text-dental-primary mr-2"></i>
+                                Need Help?
+                            </h4>
+                            <div class="space-y-2 text-xs text-gray-400">
+                                <div class="flex items-center">
+                                    <i class="fas fa-phone w-4 mr-2"></i>
+                                    <span>(555) 123-4567</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-envelope w-4 mr-2"></i>
+                                    <span>orders@dentallab.com</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-clock w-4 mr-2"></i>
+                                    <span>Mon-Fri 8AM-6PM</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Form JavaScript -->
+    <script>
+        // Global variables
+        let selectedTeeth = [];
+        let selectedShade = null;
+        let selectedMaterial = null;
+        let orderData = {};
+
+        // Initialize order form
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🦷 DentalCAD Pro Order Form initialized');
+            
+            // Generate random order ID (or use saved case ID)
+            if (window.dataManager) {
+                document.getElementById('orderId').textContent = window.dataManager.currentCaseId;
+            } else {
+                document.getElementById('orderId').textContent = generateOrderId();
+            }
+            
+            // Initialize form interactions
+            initializeToothSelection();
+            initializeShadeSelection();
+            initializeMaterialSelection();
+            initializeFormUpdates();
+            initializeButtons();
+            initializeFileUpload();
+            
+            // Initialize data management and load existing data
+            setTimeout(() => {
+                if (window.workflowDataBridge) {
+                    window.workflowDataBridge.loadStageData();
+                    console.log('📊 Data management initialized and data loaded');
+                } else {
+                    console.warn('⚠️ Data management not available yet');
+                }
+            }, 500);
+        });
+
+        // Generate random order ID
+        function generateOrderId() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            return `DC-${year}${month}${day}-${random}`;
+        }
+
+        // Initialize tooth selection
+        function initializeToothSelection() {
+            document.querySelectorAll('.tooth-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tooth = this.getAttribute('data-tooth');
+                    
+                    if (this.classList.contains('selected')) {
+                        // Deselect tooth
+                        this.classList.remove('selected');
+                        selectedTeeth = selectedTeeth.filter(t => t !== tooth);
+                    } else {
+                        // Select tooth
+                        this.classList.add('selected');
+                        selectedTeeth.push(tooth);
+                    }
+                    
+                    updateTeethDisplay();
+                    updateOrderSummary();
+                });
+            });
+        }
+
+        // Initialize shade selection
+        function initializeShadeSelection() {
+            document.querySelectorAll('.shade-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove selection from all shades
+                    document.querySelectorAll('.shade-button').forEach(btn => btn.classList.remove('selected'));
+                    
+                    // Select this shade
+                    this.classList.add('selected');
+                    selectedShade = this.getAttribute('data-shade');
+                    
+                    updateShadeDisplay();
+                    updateOrderSummary();
+                });
+            });
+        }
+
+        // Initialize material selection
+        function initializeMaterialSelection() {
+            document.querySelectorAll('.material-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    // Remove selection from all materials
+                    document.querySelectorAll('.material-card').forEach(c => c.classList.remove('selected'));
+                    
+                    // Select this material
+                    this.classList.add('selected');
+                    selectedMaterial = this.getAttribute('data-material');
+                    
+                    updateMaterialDisplay();
+                    updateOrderSummary();
+                });
+            });
+        }
+
+        // Initialize form updates
+        function initializeFormUpdates() {
+            // Patient name update
+            document.getElementById('patientName').addEventListener('input', function() {
+                updateOrderSummary();
+            });
+
+            // Restoration type update
+            document.getElementById('restorationType').addEventListener('change', function() {
+                updateOrderSummary();
+            });
+
+            // Priority update
+            document.getElementById('priority').addEventListener('change', function() {
+                updateOrderSummary();
+            });
+        }
+
+        // Initialize buttons
+        function initializeButtons() {
+            // Next button - proceed to scan cleaning
+            document.getElementById('nextToScanCleaning').addEventListener('click', function() {
+                if (validateForm()) {
+                    saveOrderData();
+                    proceedToScanCleaning();
+                }
+            });
+
+            // Save as draft
+            document.getElementById('saveAsDraft').addEventListener('click', function() {
+                saveOrderData();
+                showNotification('Order saved as draft', 'success');
+            });
+
+            // Clear form
+            document.getElementById('clearForm').addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear all form data?')) {
+                    clearForm();
+                }
+            });
+        }
+
+        // Update displays
+        function updateTeethDisplay() {
+            const display = document.getElementById('selectedTeeth');
+            display.textContent = selectedTeeth.length > 0 ? selectedTeeth.sort((a, b) => a - b).join(', ') : 'None';
+        }
+
+        function updateShadeDisplay() {
+            const display = document.getElementById('selectedShade');
+            display.textContent = selectedShade || 'None';
+        }
+
+        function updateMaterialDisplay() {
+            const display = document.getElementById('selectedMaterial');
+            const materialNames = {
+                'zirconia': 'Zirconia',
+                'emax': 'Emax (Lithium Disilicate)',
+                'pfm': 'PFM (Porcelain Fused to Metal)',
+                'gold': 'Gold Alloy',
+                'composite': 'Composite Resin',
+                'custom': 'Custom Material'
+            };
+            display.textContent = selectedMaterial ? materialNames[selectedMaterial] : 'None';
+        }
+
+        // Update order summary
+        function updateOrderSummary() {
+            const patientName = document.getElementById('patientName').value;
+            const restorationType = document.getElementById('restorationType').value;
+            const priority = document.getElementById('priority').value;
+
+            document.getElementById('summaryPatient').textContent = patientName || 'Not specified';
+            document.getElementById('summaryTeeth').textContent = selectedTeeth.length > 0 ? selectedTeeth.sort((a, b) => a - b).join(', ') : 'None selected';
+            document.getElementById('summaryShade').textContent = selectedShade || 'Not selected';
+            
+            const materialNames = {
+                'zirconia': 'Zirconia',
+                'emax': 'Emax',
+                'pfm': 'PFM',
+                'gold': 'Gold Alloy',
+                'composite': 'Composite',
+                'custom': 'Custom'
+            };
+            document.getElementById('summaryMaterial').textContent = selectedMaterial ? materialNames[selectedMaterial] : 'Not selected';
+            
+            const restorationNames = {
+                'crown': 'Crown',
+                'bridge': 'Bridge',
+                'veneer': 'Veneer',
+                'inlay': 'Inlay',
+                'onlay': 'Onlay',
+                'implant': 'Implant Crown',
+                'partial': 'Partial Denture',
+                'complete': 'Complete Denture'
+            };
+            document.getElementById('summaryRestoration').textContent = restorationType ? restorationNames[restorationType] : 'Not specified';
+            
+            const priorityNames = {
+                'standard': 'Standard (7-10 days)',
+                'rush': 'Rush (3-5 days)',
+                'emergency': 'Emergency (24-48 hours)'
+            };
+            document.getElementById('summaryPriority').textContent = priorityNames[priority] || 'Standard';
+
+            // Update files summary
+            const filesElement = document.getElementById('summaryFiles');
+            if (uploadedFiles.length === 0) {
+                filesElement.textContent = 'No files uploaded';
+                filesElement.className = 'text-gray-400 font-medium';
+            } else {
+                const totalSize = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
+                filesElement.innerHTML = `
+                    <div class="text-white font-medium">${uploadedFiles.length} file(s)</div>
+                    <div class="text-xs text-gray-400">${formatFileSize(totalSize)}</div>
+                `;
+            }
+        }
+
+        // Form validation
+        function validateForm() {
+            const patientName = document.getElementById('patientName').value.trim();
+            
+            if (!patientName) {
+                showNotification('Patient name is required', 'error');
+                document.getElementById('patientName').focus();
+                return false;
+            }
+
+            if (selectedTeeth.length === 0) {
+                showNotification('Please select at least one tooth', 'error');
+                return false;
+            }
+
+            if (!selectedMaterial) {
+                showNotification('Please select a material', 'error');
+                return false;
+            }
+
+            if (uploadedFiles.length === 0) {
+                showNotification('Please upload at least one STL file', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Save order data to localStorage
+        function saveOrderData() {
+            orderData = {
+                orderId: document.getElementById('orderId').textContent,
+                patientName: document.getElementById('patientName').value,
+                patientId: document.getElementById('patientId').value,
+                doctorName: document.getElementById('doctorName').value,
+                dateRequired: document.getElementById('dateRequired').value,
+                selectedTeeth: selectedTeeth,
+                selectedShade: selectedShade,
+                selectedMaterial: selectedMaterial,
+                restorationType: document.getElementById('restorationType').value,
+                specialInstructions: document.getElementById('specialInstructions').value,
+                priority: document.getElementById('priority').value,
+                contactMethod: document.getElementById('contactMethod').value,
+                uploadedFiles: uploadedFiles.map(file => ({
+                    name: file.name,
+                    size: file.size,
+                    id: file.id,
+                    uploadTime: file.uploadTime
+                })),
+                timestamp: new Date().toISOString()
+            };
+
+            localStorage.setItem('dentalOrderData', JSON.stringify(orderData));
+            
+            // Store actual file objects separately for loading in scan cleaning
+            const fileObjects = {};
+            uploadedFiles.forEach(fileInfo => {
+                fileObjects[fileInfo.id] = fileInfo.file;
+            });
+            localStorage.setItem('dentalOrderFiles', JSON.stringify(fileObjects));
+            
+            console.log('📋 Order data saved:', orderData);
+            console.log('📁 Files saved:', uploadedFiles.length, 'files');
+        }
+
+        // Proceed to scan cleaning stage
+        function proceedToScanCleaning() {
+            // Save order data using data management system
+            if (window.workflowDataBridge) {
+                window.workflowDataBridge.saveCurrentStageData();
+                console.log('📋 Order data saved using data management system');
+            }
+            
+            showNotification('Order information validated. Proceeding to scan cleaning...', 'success');
+            
+            // Small delay for user feedback
+            setTimeout(() => {
+                workflowProgress.proceedToNextStage();
+            }, 1500);
+        }
+
+        // Clear form
+        function clearForm() {
+            // Clear all inputs
+            document.querySelectorAll('input, select, textarea').forEach(element => {
+                element.value = '';
+            });
+
+            // Clear selections
+            document.querySelectorAll('.tooth-button.selected').forEach(btn => btn.classList.remove('selected'));
+            document.querySelectorAll('.shade-button.selected').forEach(btn => btn.classList.remove('selected'));
+            document.querySelectorAll('.material-card.selected').forEach(card => card.classList.remove('selected'));
+
+            // Reset variables
+            selectedTeeth = [];
+            selectedShade = null;
+            selectedMaterial = null;
+
+            // Update displays
+            updateTeethDisplay();
+            updateShadeDisplay();
+            updateMaterialDisplay();
+            updateOrderSummary();
+
+            // Generate new order ID
+            document.getElementById('orderId').textContent = generateOrderId();
+
+            showNotification('Form cleared', 'info');
+        }
+
+        // STL File Upload Functionality
+        let uploadedFiles = [];
+        const maxFiles = 10;
+        const maxFileSize = 50 * 1024 * 1024; // 50MB in bytes
+
+        function initializeFileUpload() {
+            const dropzone = document.getElementById('stlDropzone');
+            const fileInput = document.getElementById('stlFileInput');
+
+            // Dropzone events
+            dropzone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('active');
+            });
+
+            dropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('active');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('active');
+                const files = Array.from(e.dataTransfer.files);
+                handleFileSelection(files);
+            });
+
+            // File input change
+            fileInput.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                handleFileSelection(files);
+            });
+        }
+
+        async function handleFileSelection(files) {
+            // Filter STL files only
+            const stlFiles = files.filter(file => {
+                const isSTL = file.name.toLowerCase().endsWith('.stl');
+                if (!isSTL) {
+                    showNotification(`${file.name} is not an STL file`, 'error');
+                }
+                return isSTL;
+            });
+
+            // Check file size
+            const validFiles = stlFiles.filter(file => {
+                if (file.size > maxFileSize) {
+                    showNotification(`${file.name} is too large (max 50MB)`, 'error');
+                    return false;
+                }
+                return true;
+            });
+
+            // Check total file count
+            if (uploadedFiles.length + validFiles.length > maxFiles) {
+                showNotification(`Maximum ${maxFiles} files allowed`, 'error');
+                return;
+            }
+
+            // Check for duplicates
+            const newFiles = validFiles.filter(file => {
+                const duplicate = uploadedFiles.some(existing => existing.name === file.name);
+                if (duplicate) {
+                    showNotification(`${file.name} is already uploaded`, 'warning');
+                }
+                return !duplicate;
+            });
+
+            if (newFiles.length === 0) {
+                return;
+            }
+
+            // Use data management system to save files persistently
+            if (window.workflowDataBridge) {
+                try {
+                    const savedFiles = await window.workflowDataBridge.handleFileUpload(newFiles);
+                    
+                    // Add to local array for immediate UI update
+                    savedFiles.forEach(({ id, fileData }) => {
+                        const fileInfo = {
+                            name: fileData.name,
+                            size: fileData.size,
+                            type: fileData.type,
+                            id: id,
+                            uploadTime: fileData.uploadedAt,
+                            persistentId: id // Reference to persistent storage
+                        };
+                        uploadedFiles.push(fileInfo);
+                    });
+
+                    showNotification(`${newFiles.length} file(s) saved successfully`, 'success');
+                    updateFilesList();
+                    updateOrderSummary();
+                } catch (error) {
+                    console.error('Error saving files:', error);
+                    showNotification('Error saving files', 'error');
+                }
+            } else {
+                // Fallback to old method if data management not available
+                newFiles.forEach(file => {
+                    const fileInfo = {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        file: file,
+                        id: Date.now() + Math.random(),
+                        uploadTime: new Date().toISOString()
+                    };
+                    uploadedFiles.push(fileInfo);
+                });
+
+                showNotification(`${newFiles.length} file(s) added successfully`, 'success');
+                updateFilesList();
+                updateOrderSummary();
+            }
+
+            // Clear file input
+            document.getElementById('stlFileInput').value = '';
+        }
+
+        function updateFilesList() {
+            const filesList = document.getElementById('filesList');
+            const uploadedFilesContainer = document.getElementById('uploadedFilesList');
+
+            if (uploadedFiles.length === 0) {
+                uploadedFilesContainer.style.display = 'none';
+                return;
+            }
+
+            uploadedFilesContainer.style.display = 'block';
+            filesList.innerHTML = '';
+
+            uploadedFiles.forEach(fileInfo => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                const fileSizeFormatted = formatFileSize(fileInfo.size);
+                
+                fileItem.innerHTML = `
+                    <div class="flex items-center flex-1">
+                        <i class="fas fa-cube text-dental-primary mr-3"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-gray-200">${fileInfo.name}</div>
+                            <div class="text-xs text-gray-400">${fileSizeFormatted}</div>
+                        </div>
+                        <button onclick="removeFile('${fileInfo.id}')" class="text-red-400 hover:text-red-300 ml-2 p-1">
+                            <i class="fas fa-trash text-sm"></i>
+                        </button>
+                    </div>
+                `;
+                
+                filesList.appendChild(fileItem);
+            });
+        }
+
+        function removeFile(fileId) {
+            // Find the file to remove
+            const fileToRemove = uploadedFiles.find(file => file.id === fileId);
+            
+            if (fileToRemove && window.workflowDataBridge) {
+                // Remove from persistent storage
+                window.workflowDataBridge.removeFile(fileToRemove.persistentId || fileId);
+            }
+            
+            // Remove from local array
+            uploadedFiles = uploadedFiles.filter(file => file.id !== fileId);
+            updateFilesList();
+            updateOrderSummary();
+            showNotification('File removed', 'info');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
+            
+            // Set color based on type
+            switch(type) {
+                case 'success':
+                    notification.className += ' bg-green-600 text-white';
+                    break;
+                case 'error':
+                    notification.className += ' bg-red-600 text-white';
+                    break;
+                case 'warning':
+                    notification.className += ' bg-yellow-600 text-white';
+                    break;
+                default:
+                    notification.className += ' bg-blue-600 text-white';
+            }
+
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+
+    <!-- Workflow Progress Script -->
+    <script src="js/workflowProgress.js"></script>
+</body>
+</html>

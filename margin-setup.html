@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Margin & Crown Setup - DentalCAD Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Fix for Three.js loaders
+        if (window.STLLoader && !THREE.STLLoader) {
+            THREE.STLLoader = window.STLLoader;
+        }
+        if (window.OrbitControls && !THREE.OrbitControls) {
+            THREE.OrbitControls = window.OrbitControls;
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dental: {
+                            primary: '#f97316',
+                            secondary: '#ea580c',
+                            dark: '#0c0a09',
+                            light: '#f5f5f4',
+                            accent: '#fdba74',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .glass-effect {
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background-color: rgba(15, 23, 42, 0.8);
+        }
+
+        /* Workflow Progress Styles */
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .workflow-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2rem;
+            height: 2px;
+            background-color: rgba(55, 65, 81, 0.8);
+        }
+
+        .workflow-step.active::after {
+            background-color: #f97316;
+        }
+
+        .workflow-step.completed::after {
+            background-color: #10b981;
+        }
+
+        .step-circle {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border: 2px solid rgba(55, 65, 81, 0.8);
+            background-color: rgba(31, 41, 55, 0.8);
+            color: #9ca3af;
+        }
+
+        .workflow-step.active .step-circle {
+            border-color: #f97316;
+            background-color: #f97316;
+            color: white;
+        }
+
+        .workflow-step.completed .step-circle {
+            border-color: #10b981;
+            background-color: #10b981;
+            color: white;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+    </style>
+</head>
+<body class="h-full overflow-hidden text-gray-200">
+    <!-- Workflow Progress -->
+    <div id="workflowProgressContainer"></div>
+
+    <div class="flex" style="height: calc(100vh - 80px);">
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col">
+            <!-- Header -->
+            <div class="bg-gray-800 border-b border-gray-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-semibold text-white flex items-center">
+                            <i class="fas fa-drafting-compass text-dental-primary mr-3"></i>
+                            Margin & Crown Setup
+                        </h1>
+                        <p class="text-sm text-gray-400 mt-1">Define margins and position crowns</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <div class="text-sm bg-gray-700 rounded-full px-3 py-1">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="stageTimer">00:00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3D Viewport -->
+            <div class="flex-1 relative bg-gray-900">
+                <canvas id="renderCanvas"></canvas>
+                
+                <!-- Viewport Controls -->
+                <div class="absolute top-4 left-4 space-y-2">
+                    <button class="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-lg shadow-lg">
+                        <i class="fas fa-cube"></i>
+                    </button>
+                    <button class="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-lg shadow-lg">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+
+                <!-- Margin Tools -->
+                <div class="absolute top-4 right-4 bg-gray-800 rounded-lg p-3 shadow-lg">
+                    <h4 class="text-sm font-medium text-white mb-2">Margin Tools</h4>
+                    <div class="space-y-2">
+                        <button id="marginPen" class="w-full text-left p-2 rounded bg-dental-primary text-white text-sm">
+                            <i class="fas fa-pen mr-2"></i>Margin Pen
+                        </button>
+                        <button id="marginSmooth" class="w-full text-left p-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm">
+                            <i class="fas fa-magic mr-2"></i>Smooth
+                        </button>
+                        <button id="marginAuto" class="w-full text-left p-2 rounded bg-gray-700 hover:bg-gray-600 text-white text-sm">
+                            <i class="fas fa-wand-magic-sparkles mr-2"></i>Auto Detect
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
+            <!-- Order Information -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-file-medical text-dental-primary mr-2"></i>
+                    Order Information
+                </h3>
+                <div id="orderInfo" class="space-y-2 text-sm">
+                    <!-- Order details will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Margin Settings -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-sliders-h text-dental-primary mr-2"></i>
+                    Margin Settings
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Margin Width</label>
+                        <input type="range" id="marginWidth" min="0.1" max="2.0" step="0.1" value="0.5" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="marginWidthValue" class="text-xs text-gray-300">0.5mm</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Margin Depth</label>
+                        <input type="range" id="marginDepth" min="0.5" max="3.0" step="0.1" value="1.0" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="marginDepthValue" class="text-xs text-gray-300">1.0mm</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crown Settings -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-crown text-dental-primary mr-2"></i>
+                    Crown Settings
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Crown Height</label>
+                        <input type="range" id="crownHeight" min="5" max="15" step="0.5" value="8" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="crownHeightValue" class="text-xs text-gray-300">8.0mm</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Wall Thickness</label>
+                        <input type="range" id="wallThickness" min="0.8" max="3.0" step="0.1" value="1.5" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="wallThicknessValue" class="text-xs text-gray-300">1.5mm</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="flex-1 p-4">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-tasks text-dental-primary mr-2"></i>
+                    Progress
+                </h3>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-400">Margins Defined</span>
+                        <i id="marginStatus" class="fas fa-circle text-gray-500"></i>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-400">Crown Positioned</span>
+                        <i id="crownStatus" class="fas fa-circle text-gray-500"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="p-4 border-t border-gray-700 space-y-3">
+                <button id="proceedToDesign" class="w-full bg-dental-primary hover:bg-dental-secondary text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center" disabled>
+                    <i class="fas fa-arrow-right mr-2"></i>
+                    Proceed to Design
+                </button>
+                <button id="backToScanning" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to Scan Cleaning
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Progress Script -->
+    <script src="js/workflowProgress.js"></script>
+    
+    <script>
+        // Margin & Crown Setup JavaScript
+        let scene, camera, renderer, controls;
+        let marginProgress = { margins: false, crown: false };
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔧 Margin & Crown Setup initialized');
+            
+            loadOrderInformation();
+            initializeThreeJS();
+            initializeControls();
+            startTimer();
+        });
+
+        function loadOrderInformation() {
+            const orderData = JSON.parse(localStorage.getItem('dentalOrderData') || '{}');
+            
+            if (Object.keys(orderData).length === 0) {
+                document.getElementById('orderInfo').innerHTML = '<p class="text-gray-400">No order data found</p>';
+                return;
+            }
+
+            const orderHTML = `
+                <div class="text-xs">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Patient:</span>
+                        <span class="text-white">${orderData.patientName || 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Teeth:</span>
+                        <span class="text-white">${orderData.selectedTeeth ? orderData.selectedTeeth.join(', ') : 'None'}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Material:</span>
+                        <span class="text-white">${orderData.selectedMaterial || 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Files:</span>
+                        <span class="text-white">${orderData.uploadedFiles ? orderData.uploadedFiles.length : 0} STL files</span>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('orderInfo').innerHTML = orderHTML;
+        }
+
+        function initializeThreeJS() {
+            const canvas = document.getElementById('renderCanvas');
+            const container = canvas.parentElement;
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1f2937);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Start render loop
+            animate();
+        }
+
+        function initializeControls() {
+            // Margin width slider
+            const marginWidth = document.getElementById('marginWidth');
+            const marginWidthValue = document.getElementById('marginWidthValue');
+            marginWidth.addEventListener('input', function() {
+                marginWidthValue.textContent = this.value + 'mm';
+            });
+
+            // Margin depth slider
+            const marginDepth = document.getElementById('marginDepth');
+            const marginDepthValue = document.getElementById('marginDepthValue');
+            marginDepth.addEventListener('input', function() {
+                marginDepthValue.textContent = this.value + 'mm';
+            });
+
+            // Crown height slider
+            const crownHeight = document.getElementById('crownHeight');
+            const crownHeightValue = document.getElementById('crownHeightValue');
+            crownHeight.addEventListener('input', function() {
+                crownHeightValue.textContent = this.value + 'mm';
+            });
+
+            // Wall thickness slider
+            const wallThickness = document.getElementById('wallThickness');
+            const wallThicknessValue = document.getElementById('wallThicknessValue');
+            wallThickness.addEventListener('input', function() {
+                wallThicknessValue.textContent = this.value + 'mm';
+            });
+
+            // Tool buttons
+            document.getElementById('marginPen').addEventListener('click', function() {
+                selectTool('marginPen');
+                simulateMarginProgress();
+            });
+
+            document.getElementById('marginSmooth').addEventListener('click', function() {
+                selectTool('marginSmooth');
+            });
+
+            document.getElementById('marginAuto').addEventListener('click', function() {
+                selectTool('marginAuto');
+                simulateAutoDetect();
+            });
+
+            // Navigation buttons
+            document.getElementById('proceedToDesign').addEventListener('click', function() {
+                if (marginProgress.margins && marginProgress.crown) {
+                    workflowProgress.proceedToNextStage();
+                }
+            });
+
+            document.getElementById('backToScanning').addEventListener('click', function() {
+                workflowProgress.navigateToStage(2);
+            });
+        }
+
+        function selectTool(toolName) {
+            document.querySelectorAll('[id*="margin"]').forEach(btn => {
+                btn.className = btn.className.replace('bg-dental-primary', 'bg-gray-700 hover:bg-gray-600');
+            });
+            
+            const selectedBtn = document.getElementById(toolName);
+            selectedBtn.className = selectedBtn.className.replace('bg-gray-700 hover:bg-gray-600', 'bg-dental-primary');
+        }
+
+        function simulateMarginProgress() {
+            setTimeout(() => {
+                marginProgress.margins = true;
+                document.getElementById('marginStatus').className = 'fas fa-check-circle text-green-500';
+                checkProceedReady();
+            }, 2000);
+        }
+
+        function simulateAutoDetect() {
+            setTimeout(() => {
+                marginProgress.margins = true;
+                marginProgress.crown = true;
+                document.getElementById('marginStatus').className = 'fas fa-check-circle text-green-500';
+                document.getElementById('crownStatus').className = 'fas fa-check-circle text-green-500';
+                checkProceedReady();
+            }, 3000);
+        }
+
+        function checkProceedReady() {
+            const proceedBtn = document.getElementById('proceedToDesign');
+            if (marginProgress.margins && marginProgress.crown) {
+                proceedBtn.disabled = false;
+                proceedBtn.className = proceedBtn.className.replace('bg-gray-600', 'bg-dental-primary hover:bg-dental-secondary');
+            }
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('renderCanvas').parentElement;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function startTimer() {
+            let seconds = 0;
+            setInterval(() => {
+                seconds++;
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                document.getElementById('stageTimer').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

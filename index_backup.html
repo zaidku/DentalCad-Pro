@@ -167,6 +167,15 @@
                     <i class="fas fa-cog text-lg"></i>
                 </button>
             </div>
+
+            <div class="mt-auto flex flex-col items-center space-y-4">
+                <button id="undoButton" class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-undo text-lg"></i>
+                </button>
+                <button class="w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary">
+                    <i class="fas fa-cog text-lg"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Left Panel -->
@@ -2221,22 +2230,10 @@
 
         // STL Loading
         function loadSTL(file) {
-            console.log('🚀 Starting STL load for:', file.name, 'Size:', file.size, 'bytes');
-            
-            if (!file) {
-                console.error('❌ No file provided to loadSTL');
-                return;
-            }
-            
-            if (!THREE) {
-                console.error('❌ Three.js not loaded');
-                alert('Three.js library not loaded. Please refresh the page.');
-                return;
-            }
+            console.log('🚀 Starting STL load for:', file.name);
             
             if (!THREE.STLLoader) {
                 console.error('❌ STLLoader not available. Loaders may not have loaded yet.');
-                alert('STL Loader not ready. Please wait a moment and try again.');
                 setTimeout(() => loadSTL(file), 1000); // Retry after 1 second
                 return;
             }
@@ -2491,12 +2488,6 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎯 DOM loaded, initializing...');
             
-            // Check Three.js and loaders availability
-            console.log('🔍 Checking Three.js availability...');
-            console.log('  - THREE:', typeof THREE);
-            console.log('  - STLLoader:', typeof THREE?.STLLoader);
-            console.log('  - OrbitControls:', typeof THREE?.OrbitControls);
-            
             init3DViewer();
             
             // Initialize dental bases
@@ -2555,6 +2546,74 @@
                     selectTool(this.getAttribute('data-tool'));
                 });
             });
+            
+            // File upload
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            
+            console.log('🔍 File upload elements:', { dropzone, fileInput });
+            
+            if (!dropzone) {
+                console.error('❌ Dropzone element not found!');
+                return;
+            }
+            
+            if (!fileInput) {
+                console.error('❌ File input element not found!');
+                return;
+            }
+            
+            // Drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => {
+                    console.log('🎯 Drag enter/over detected');
+                    dropzone.classList.add('active');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => {
+                    console.log('🎯 Drag leave/drop detected');
+                    dropzone.classList.remove('active');
+                }, false);
+            });
+
+            dropzone.addEventListener('drop', handleDrop, false);
+            fileInput.addEventListener('change', handleFiles, false);
+            dropzone.addEventListener('click', () => {
+                console.log('🎯 Dropzone clicked, opening file picker');
+                fileInput.click();
+            });
+
+            function handleDrop(e) {
+                console.log('📁 Files dropped:', e.dataTransfer.files);
+                const files = e.dataTransfer.files;
+                handleFiles({ target: { files } });
+            }
+
+            function handleFiles(e) {
+                console.log('📁 Handling files:', e.target.files);
+                const files = e.target.files;
+                Array.from(files).forEach(file => {
+                    console.log('📄 Processing file:', file.name, file.type);
+                    if (file.name.toLowerCase().endsWith('.stl')) {
+                        console.log('✅ Loading STL file:', file.name);
+                        loadSTL(file);
+                    } else {
+                        console.warn('⚠️ File is not an STL:', file.name);
+                    }
+                });
+            }
+            
             // Button handlers
             document.getElementById('undoButton').addEventListener('click', performUndo);
             document.getElementById('clearButton').addEventListener('click', clearAll);
@@ -2595,96 +2654,60 @@
                 });
             });
             
-            // Grid toggle handler
-            document.getElementById('toggleGridBtn').addEventListener('click', toggleGrid);
-            
-            // Other viewport control handlers
+            // Bottom viewport controls
             document.getElementById('resetViewBtn').addEventListener('click', resetView);
             document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
             document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
-            // Setup file upload with loader check
-            function setupFileUpload() {
-                console.log('📁 Setting up file upload...');
-                
-                // File upload
-                const dropzone = document.getElementById('dropzone');
-                const fileInput = document.getElementById('fileInput');
-
-                if (!dropzone || !fileInput) {
-                    console.error('❌ Dropzone or file input not found!');
-                    return;
-                }
-
-                console.log('✅ File upload elements found');
-
-                // Prevent default drag behaviors
-                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                    dropzone.addEventListener(eventName, function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }, false);
-                });
-
-                // Highlight dropzone on dragover
-                ['dragenter', 'dragover'].forEach(eventName => {
-                    dropzone.addEventListener(eventName, function() {
-                        dropzone.classList.add('active');
-                    }, false);
-                });
-                ['dragleave', 'drop'].forEach(eventName => {
-                    dropzone.addEventListener(eventName, function() {
-                        dropzone.classList.remove('active');
-                    }, false);
-                });
-
-                // Handle drop event
-                dropzone.addEventListener('drop', function(e) {
-                    console.log('📁 Files dropped:', e.dataTransfer.files);
-                    const files = e.dataTransfer.files;
-                    handleFiles(files);
-                }, false);
-
-                // Handle file input change
-                fileInput.addEventListener('change', function(e) {
-                    console.log('📁 File input changed:', e.target.files);
-                    if (e.target.files && e.target.files.length > 0) {
-                        handleFiles(e.target.files);
-                        // Clear the file input so the same file can be selected again
-                        e.target.value = '';
-                    } else {
-                        console.log('⚠️ No files selected');
-                    }
-                }, false);
-
-                // Click dropzone to open file picker
-                dropzone.addEventListener('click', function(e) {
-                    console.log('🎯 Dropzone clicked');
-                    // Prevent multiple clicks if clicking on nested elements
-                    e.preventDefault();
-                    e.stopPropagation();
-                    fileInput.click();
-                });
-
-                // Handle files (drag/drop or file input)
-                function handleFiles(files) {
-                    console.log('📁 Processing files:', files);
-                    Array.from(files).forEach(file => {
-                        console.log('📄 Processing file:', file.name, 'Type:', file.type);
-                        if (file.name.toLowerCase().endsWith('.stl')) {
-                            console.log('✅ Loading STL file:', file.name);
-                            loadSTL(file);  // Call loadSTL directly since it's defined in same scope
-                        } else {
-                            console.warn('⚠️ File is not an STL:', file.name);
-                            alert('Only STL files are supported. Please upload a .stl file.');
-                        }
-                    });
-                }
-                
-                console.log('✅ File upload setup complete');
-            }
+            document.getElementById('toggleGridBtn').addEventListener('click', toggleGrid);
             
-            // Setup file upload after a short delay to ensure Three.js loaders are ready
-            setTimeout(setupFileUpload, 100);
+            // Tool settings controls
+            const strengthSlider = document.getElementById('strengthSlider');
+            const strengthValue = document.getElementById('strengthValue');
+            const influenceSizeSlider = document.getElementById('influenceSizeSlider');
+            const influenceSizeValue = document.getElementById('influenceSizeValue');
+            const showToolInfoCheckbox = document.getElementById('showToolInfo');
+            const showGridCheckbox = document.getElementById('showGrid');
+            
+            strengthSlider.oninput = function() {
+                toolSettings.strength = parseFloat(this.value);
+                strengthValue.textContent = toolSettings.strength.toFixed(2);
+            };
+            
+            influenceSizeSlider.oninput = function() {
+                toolSettings.influenceSize = parseFloat(this.value);
+                influenceSizeValue.textContent = toolSettings.influenceSize.toFixed(1);
+                
+                // Update tool status if using a material tool
+                if (['addMaterial', 'removeMaterial', 'smooth'].includes(activeTool)) {
+                    selectTool(activeTool); // Refresh the tool status display
+                }
+            };
+            
+            showToolInfoCheckbox.onchange = function() {
+                toolSettings.showToolInfo = this.checked;
+            };
+            
+            showGridCheckbox.onchange = function() {
+                toolSettings.showGrid = this.checked;
+                isGridVisible = this.checked;
+                if (gridHelper) {
+                    gridHelper.visible = this.checked;
+                }
+                
+                // Update grid button state
+                const gridBtn = document.getElementById('toggleGridBtn');
+                if (gridBtn) {
+                    if (this.checked) {
+                        gridBtn.classList.add('bg-dental-primary', 'text-white');
+                        gridBtn.classList.remove('bg-gray-700');
+                    } else {
+                        gridBtn.classList.remove('bg-dental-primary', 'text-white');
+                        gridBtn.classList.add('bg-gray-700');
+                    }
+                }
+                
+                console.log('Grid visibility:', this.checked ? 'shown' : 'hidden');
+            };
             
             // Tab switching (keeping existing functionality)
             const tabButtons = document.querySelectorAll('.tab-button');

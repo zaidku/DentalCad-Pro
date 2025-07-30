@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design - DentalCAD Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Fix for Three.js loaders
+        if (window.STLLoader && !THREE.STLLoader) {
+            THREE.STLLoader = window.STLLoader;
+        }
+        if (window.OrbitControls && !THREE.OrbitControls) {
+            THREE.OrbitControls = window.OrbitControls;
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dental: {
+                            primary: '#f97316',
+                            secondary: '#ea580c',
+                            dark: '#0c0a09',
+                            light: '#f5f5f4',
+                            accent: '#fdba74',
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        .glass-effect {
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background-color: rgba(15, 23, 42, 0.8);
+        }
+
+        /* Workflow Progress Styles */
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .workflow-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: -1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2rem;
+            height: 2px;
+            background-color: rgba(55, 65, 81, 0.8);
+        }
+
+        .workflow-step.active::after {
+            background-color: #f97316;
+        }
+
+        .workflow-step.completed::after {
+            background-color: #10b981;
+        }
+
+        .step-circle {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border: 2px solid rgba(55, 65, 81, 0.8);
+            background-color: rgba(31, 41, 55, 0.8);
+            color: #9ca3af;
+        }
+
+        .workflow-step.active .step-circle {
+            border-color: #f97316;
+            background-color: #f97316;
+            color: white;
+        }
+
+        .workflow-step.completed .step-circle {
+            border-color: #10b981;
+            background-color: #10b981;
+            color: white;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        .design-tool.active {
+            background-color: #f97316 !important;
+            color: white;
+        }
+    </style>
+</head>
+<body class="h-full overflow-hidden text-gray-200">
+    <!-- Workflow Progress -->
+    <div id="workflowProgressContainer"></div>
+
+    <div class="flex" style="height: calc(100vh - 80px);">
+        <!-- Left Sidebar - Design Tools -->
+        <div class="w-16 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-4 space-y-4">
+            <!-- Logo -->
+            <div class="w-10 h-10 rounded-md bg-dental-primary flex items-center justify-center text-white font-bold">
+                DC
+            </div>
+
+            <!-- Design Tools -->
+            <div class="flex flex-col items-center space-y-3 w-full">
+                <button class="design-tool active w-12 h-12 rounded-lg flex items-center justify-center text-dental-primary hover:bg-gray-800" data-tool="select" title="Select">
+                    <i class="fas fa-mouse-pointer text-lg"></i>
+                </button>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="sculpt" title="Sculpt">
+                    <i class="fas fa-palette text-lg"></i>
+                </button>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="smooth" title="Smooth">
+                    <i class="fas fa-magic text-lg"></i>
+                </button>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="anatomy" title="Anatomy Brush">
+                    <i class="fas fa-tooth text-lg"></i>
+                </button>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="measure" title="Measure">
+                    <i class="fas fa-ruler-combined text-lg"></i>
+                </button>
+
+                <!-- Separator -->
+                <div class="w-8 h-px bg-gray-700 my-2"></div>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="undo" title="Undo">
+                    <i class="fas fa-undo text-lg"></i>
+                </button>
+
+                <button class="design-tool w-12 h-12 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-800 hover:text-dental-primary" data-tool="redo" title="Redo">
+                    <i class="fas fa-redo text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col">
+            <!-- Header -->
+            <div class="bg-gray-800 border-b border-gray-700 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-semibold text-white flex items-center">
+                            <i class="fas fa-palette text-dental-primary mr-3"></i>
+                            Design Stage
+                        </h1>
+                        <p class="text-sm text-gray-400 mt-1">Design and modify crown shape and anatomy</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <div class="text-sm bg-gray-700 rounded-full px-3 py-1">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="stageTimer">00:00</span>
+                        </div>
+                        <div class="text-sm bg-green-700 rounded-full px-3 py-1">
+                            <i class="fas fa-link mr-1"></i>
+                            Margin Snapped
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3D Viewport -->
+            <div class="flex-1 relative bg-gray-900">
+                <canvas id="renderCanvas"></canvas>
+                
+                <!-- Viewport Controls -->
+                <div class="absolute top-4 left-4 space-y-2">
+                    <button class="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-lg shadow-lg" title="Reset View">
+                        <i class="fas fa-home"></i>
+                    </button>
+                    <button class="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-lg shadow-lg" title="Fit to Screen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button class="bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-lg shadow-lg" title="Toggle Wireframe">
+                        <i class="fas fa-cube"></i>
+                    </button>
+                </div>
+
+                <!-- Design Progress -->
+                <div class="absolute bottom-4 left-4 bg-gray-800 rounded-lg p-3 shadow-lg">
+                    <h4 class="text-sm font-medium text-white mb-2">Design Progress</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-400">Basic Shape</span>
+                            <i id="shapeStatus" class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-400">Anatomy Details</span>
+                            <i id="anatomyStatus" class="fas fa-circle text-gray-500"></i>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs text-gray-400">Occlusion Check</span>
+                            <i id="occlusionStatus" class="fas fa-circle text-gray-500"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
+            <!-- Order Information -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-file-medical text-dental-primary mr-2"></i>
+                    Order Information
+                </h3>
+                <div id="orderInfo" class="space-y-2 text-sm">
+                    <!-- Order details will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Tool Properties -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-sliders-h text-dental-primary mr-2"></i>
+                    Tool Properties
+                </h3>
+                <div id="toolProperties" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Brush Size</label>
+                        <input type="range" id="brushSize" min="0.5" max="5.0" step="0.1" value="1.0" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="brushSizeValue" class="text-xs text-gray-300">1.0mm</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Intensity</label>
+                        <input type="range" id="intensity" min="0.1" max="1.0" step="0.1" value="0.5" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="intensityValue" class="text-xs text-gray-300">50%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anatomy Library -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-shapes text-dental-primary mr-2"></i>
+                    Anatomy Library
+                </h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="anatomy-preset p-2 bg-gray-700 hover:bg-gray-600 rounded text-xs" data-preset="cusp">
+                        <i class="fas fa-mountain mb-1"></i>
+                        <div>Cusp</div>
+                    </button>
+                    <button class="anatomy-preset p-2 bg-gray-700 hover:bg-gray-600 rounded text-xs" data-preset="ridge">
+                        <i class="fas fa-wave-square mb-1"></i>
+                        <div>Ridge</div>
+                    </button>
+                    <button class="anatomy-preset p-2 bg-gray-700 hover:bg-gray-600 rounded text-xs" data-preset="fossa">
+                        <i class="fas fa-circle-notch mb-1"></i>
+                        <div>Fossa</div>
+                    </button>
+                    <button class="anatomy-preset p-2 bg-gray-700 hover:bg-gray-600 rounded text-xs" data-preset="groove">
+                        <i class="fas fa-minus mb-1"></i>
+                        <div>Groove</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Design History -->
+            <div class="flex-1 p-4">
+                <h3 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-history text-dental-primary mr-2"></i>
+                    Design History
+                </h3>
+                <div id="designHistory" class="space-y-2 max-h-32 overflow-y-auto text-sm">
+                    <div class="text-gray-400">No modifications yet</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="p-4 border-t border-gray-700 space-y-3">
+                <button id="finalizeDesign" class="w-full bg-dental-primary hover:bg-dental-secondary text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                    <i class="fas fa-check mr-2"></i>
+                    Finalize Design
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="saveProgress" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                        <i class="fas fa-save mr-1"></i>
+                        Save
+                    </button>
+                    <button id="backToMargin" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Progress Script -->
+    <script src="js/workflowProgress.js"></script>
+    
+    <script>
+        // Design Stage JavaScript
+        let scene, camera, renderer, controls;
+        let designProgress = { shape: false, anatomy: false, occlusion: false };
+        let designHistory = [];
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎨 Design Stage initialized');
+            
+            loadOrderInformation();
+            initializeThreeJS();
+            initializeDesignTools();
+            startTimer();
+        });
+
+        function loadOrderInformation() {
+            const orderData = JSON.parse(localStorage.getItem('dentalOrderData') || '{}');
+            
+            if (Object.keys(orderData).length === 0) {
+                document.getElementById('orderInfo').innerHTML = '<p class="text-gray-400">No order data found</p>';
+                return;
+            }
+
+            const orderHTML = `
+                <div class="text-xs">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Patient:</span>
+                        <span class="text-white">${orderData.patientName || 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Teeth:</span>
+                        <span class="text-white">${orderData.selectedTeeth ? orderData.selectedTeeth.join(', ') : 'None'}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-400">Material:</span>
+                        <span class="text-white">${orderData.selectedMaterial || 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Restoration:</span>
+                        <span class="text-white">${orderData.restorationType || 'N/A'}</span>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('orderInfo').innerHTML = orderHTML;
+        }
+
+        function initializeThreeJS() {
+            const canvas = document.getElementById('renderCanvas');
+            const container = canvas.parentElement;
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1f2937);
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Start render loop
+            animate();
+        }
+
+        function initializeDesignTools() {
+            // Tool selection
+            document.querySelectorAll('.design-tool[data-tool]').forEach(button => {
+                button.addEventListener('click', function() {
+                    selectDesignTool(this.getAttribute('data-tool'));
+                });
+            });
+
+            // Tool properties
+            const brushSize = document.getElementById('brushSize');
+            const brushSizeValue = document.getElementById('brushSizeValue');
+            brushSize.addEventListener('input', function() {
+                brushSizeValue.textContent = this.value + 'mm';
+            });
+
+            const intensity = document.getElementById('intensity');
+            const intensityValue = document.getElementById('intensityValue');
+            intensity.addEventListener('input', function() {
+                intensityValue.textContent = Math.round(this.value * 100) + '%';
+            });
+
+            // Anatomy presets
+            document.querySelectorAll('.anatomy-preset').forEach(button => {
+                button.addEventListener('click', function() {
+                    applyAnatomyPreset(this.getAttribute('data-preset'));
+                });
+            });
+
+            // Action buttons
+            document.getElementById('finalizeDesign').addEventListener('click', function() {
+                if (designProgress.shape && designProgress.anatomy && designProgress.occlusion) {
+                    workflowProgress.proceedToNextStage();
+                } else {
+                    workflowProgress.showNotification('Complete all design steps first', 'warning');
+                }
+            });
+
+            document.getElementById('saveProgress').addEventListener('click', saveDesignProgress);
+            document.getElementById('backToMargin').addEventListener('click', function() {
+                workflowProgress.navigateToStage(3);
+            });
+
+            // Simulate some design progress for demo
+            setTimeout(() => simulateDesignProgress(), 2000);
+        }
+
+        function selectDesignTool(toolName) {
+            document.querySelectorAll('.design-tool').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            document.querySelector(`[data-tool="${toolName}"]`).classList.add('active');
+            
+            addToHistory(`Selected ${toolName} tool`);
+        }
+
+        function applyAnatomyPreset(presetName) {
+            addToHistory(`Applied ${presetName} anatomy`);
+            
+            // Simulate progress
+            if (!designProgress.anatomy) {
+                designProgress.anatomy = true;
+                document.getElementById('anatomyStatus').className = 'fas fa-check-circle text-green-500';
+            }
+        }
+
+        function simulateDesignProgress() {
+            // Simulate basic shape completion
+            setTimeout(() => {
+                designProgress.shape = true;
+                document.getElementById('shapeStatus').className = 'fas fa-check-circle text-green-500';
+                addToHistory('Basic crown shape completed');
+            }, 1000);
+
+            // Simulate occlusion check
+            setTimeout(() => {
+                designProgress.occlusion = true;
+                document.getElementById('occlusionStatus').className = 'fas fa-check-circle text-green-500';
+                addToHistory('Occlusion verified');
+            }, 4000);
+        }
+
+        function addToHistory(action) {
+            designHistory.unshift({
+                action: action,
+                timestamp: new Date().toLocaleTimeString()
+            });
+
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const historyContainer = document.getElementById('designHistory');
+            const historyHTML = designHistory.map(item => `
+                <div class="text-xs text-gray-300">
+                    <div class="font-medium">${item.action}</div>
+                    <div class="text-gray-500">${item.timestamp}</div>
+                </div>
+            `).join('');
+
+            historyContainer.innerHTML = historyHTML || '<div class="text-gray-400">No modifications yet</div>';
+        }
+
+        function saveDesignProgress() {
+            localStorage.setItem('dentalDesignProgress', JSON.stringify({
+                progress: designProgress,
+                history: designHistory,
+                timestamp: new Date().toISOString()
+            }));
+
+            workflowProgress.showNotification('Design progress saved', 'success');
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('renderCanvas').parentElement;
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function startTimer() {
+            let seconds = 0;
+            setInterval(() => {
+                seconds++;
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                document.getElementById('stageTimer').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
